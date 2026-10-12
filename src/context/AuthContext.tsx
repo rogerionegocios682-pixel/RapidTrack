@@ -53,6 +53,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refreshCompanySettings: () => Promise<void>;
   seedDemo: () => Promise<void>;
+  loginAsMaster: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -260,6 +261,89 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await signOut(auth);
   };
 
+  const loginAsMaster = async () => {
+    const masterEmail = 'master@herculanogestor.com.br';
+    const masterPass = 'Master@2026';
+    const masterTenantId = 'tenant_master_herculano';
+
+    try {
+      try {
+        await signInWithEmailAndPassword(auth, masterEmail, masterPass);
+      } catch (signInErr: any) {
+        if (
+          signInErr.code === 'auth/user-not-found' ||
+          signInErr.code === 'auth/invalid-credential'
+        ) {
+          // If not created yet in Firebase Auth, auto-provision
+          await createUserWithEmailAndPassword(auth, masterEmail, masterPass);
+        } else {
+          throw signInErr;
+        }
+      }
+
+      const currentAuthUser = auth.currentUser;
+      if (currentAuthUser) {
+        // Ensure Master Tenant exists
+        const existingTenant = await getTenant(masterTenantId);
+        if (!existingTenant) {
+          const masterTenant: Tenant = {
+            id: masterTenantId,
+            name: 'Herculano Gestor Master',
+            tradeName: 'Herculano Gestor (Central Master)',
+            cnpj: '00.000.000/0001-99',
+            email: masterEmail,
+            phone: '(81) 99999-0000',
+            maxStores: 999,
+            createdAt: new Date().toISOString(),
+          };
+          await createTenant(masterTenant);
+        }
+
+        // Ensure Master Profile
+        const masterProfile: UserProfile = {
+          uid: currentAuthUser.uid,
+          tenantId: masterTenantId,
+          email: masterEmail,
+          name: 'Usuário Master Herculano',
+          role: 'admin',
+          active: true,
+          createdAt: new Date().toISOString(),
+        };
+        await saveUserProfile(masterProfile);
+
+        // Ensure Master Settings
+        const masterSettings: CompanySettings = {
+          tenantId: masterTenantId,
+          legalName: 'Herculano Gestor Soluções Logísticas LTDA',
+          tradeName: 'Herculano Gestor (Central Master)',
+          cnpj: '18.924.512/0001-44',
+          phone: '(81) 3456-7890',
+          email: masterEmail,
+          cep: '51020-010',
+          address: 'Avenida Engenheiro Domingos Ferreira',
+          number: '1420',
+          complement: 'Sede Central',
+          neighborhood: 'Boa Viagem',
+          city: 'Recife',
+          state: 'PE',
+          timezone: 'America/Recife',
+          shifts: ['Geral', 'Manhã', 'Almoço / Tarde', 'Noite', 'Madrugada'],
+          updatedAt: new Date().toISOString(),
+        };
+        await saveCompanySettings(masterSettings);
+
+        // Seed rich demo data if empty
+        await seedDemoDataIfEmpty(masterTenantId, 'Herculano Gestor (Central Master)');
+
+        setUserProfile(masterProfile);
+        setCompanySettings(masterSettings);
+      }
+    } catch (err) {
+      console.error('Master login error:', err);
+      throw err;
+    }
+  };
+
   const role: UserRole = userProfile?.role || 'viewer';
   const isAdmin = role === 'admin';
   const isOperator = role === 'admin' || role === 'operator';
@@ -283,6 +367,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         refreshCompanySettings,
         seedDemo,
+        loginAsMaster,
       }}
     >
       {children}

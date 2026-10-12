@@ -14,7 +14,8 @@ service cloud.firestore {
 
     function isBootstrappedAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == "rogerionegocios682@gmail.com"
+        request.auth.token.email == "rogerionegocios682@gmail.com" ||
+        request.auth.token.email == "master@herculanogestor.com.br"
       );
     }
 

