@@ -162,9 +162,12 @@ export async function saveCompanySettings(settings: CompanySettings): Promise<vo
 // USER PROFILES
 // ==========================================
 
-export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+export async function getUserProfile(uid: string, email?: string): Promise<UserProfile | null> {
   try {
-    const res = await fetch(`/api/users/${encodeURIComponent(uid)}`);
+    const url = email
+      ? `/api/users/${encodeURIComponent(uid)}?email=${encodeURIComponent(email)}`
+      : `/api/users/${encodeURIComponent(uid)}`;
+    const res = await fetch(url);
     if (!res.ok) return null;
     return await res.json();
   } catch (error) {

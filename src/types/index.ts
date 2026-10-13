@@ -23,6 +23,7 @@ export interface UserProfile {
   name: string;
   role: UserRole;
   active: boolean;
+  password?: string;
   createdAt: string;
 }
 

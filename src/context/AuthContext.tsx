@@ -3,7 +3,7 @@
  * Multi-tenant authentication, session management, and role checking
  */
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -130,6 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const isRegisteringRef = useRef<boolean>(false);
 
   useEffect(() => {
     // Check if master session was previously saved in storage
@@ -146,19 +147,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCompanySettings(settings);
       setLoading(false);
 
-      // Background sync to Firestore without blocking UI
       seedDemoDataIfEmpty(MASTER_TENANT_ID, 'Herculano Gestor (Central Master)').catch(() => {});
       return;
     }
 
+    // Check if local registered email user session was saved in storage
+    const storedUserSession = localStorage.getItem('delivery_os_user_session');
+    if (storedUserSession) {
+      try {
+        const parsed = JSON.parse(storedUserSession);
+        if (parsed.uid && parsed.tenantId) {
+          getUserProfile(parsed.uid, parsed.email).then(async (profile) => {
+            if (profile) {
+              const syntheticUser = {
+                uid: profile.uid,
+                email: profile.email,
+                displayName: profile.name,
+                emailVerified: true,
+                isAnonymous: false,
+                metadata: {} as any,
+                providerData: [],
+                refreshToken: 'session_token',
+                tenantId: profile.tenantId,
+                delete: async () => {},
+                getIdToken: async () => 'session_token',
+                getIdTokenResult: async () => ({} as any),
+                reload: async () => {},
+                toJSON: () => ({}),
+                phoneNumber: null,
+                photoURL: null,
+                providerId: 'password',
+              } as unknown as User;
+
+              const [ten, setts] = await Promise.all([
+                getTenant(profile.tenantId),
+                getCompanySettings(profile.tenantId),
+              ]);
+
+              setCurrentUser(syntheticUser);
+              setUserProfile(profile);
+              setTenant(ten);
+              setCompanySettings(setts);
+              setLoading(false);
+            } else {
+              localStorage.removeItem('delivery_os_user_session');
+              setLoading(false);
+            }
+          }).catch(() => {
+            setLoading(false);
+          });
+          return;
+        }
+      } catch {
+        localStorage.removeItem('delivery_os_user_session');
+      }
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (isRegisteringRef.current) {
+        return;
+      }
       setCurrentUser(user);
       if (user) {
         try {
-          // Fetch user profile
-          let profile = await getUserProfile(user.uid);
+          if (isRegisteringRef.current) return;
+          // Fetch user profile with email fallback
+          let profile = await getUserProfile(user.uid, user.email || undefined);
 
           if (!profile) {
+            if (isRegisteringRef.current) return;
             // First time or Google Login without profile: create default tenant & profile
             const tenantId = `tenant_${user.uid.slice(0, 10)}`;
             const defaultTradeName = user.displayName || 'JC Logística & Entregas';
@@ -271,7 +328,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginWithEmail = async (email: string, pass: string) => {
-    await signInWithEmailAndPassword(auth, email, pass);
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+    } catch (fbErr: any) {
+      if (
+        fbErr.code === 'auth/operation-not-allowed' ||
+        fbErr.code === 'auth/user-not-found' ||
+        fbErr.code === 'auth/invalid-credential'
+      ) {
+        // Fallback to PostgreSQL relational authentication
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: pass }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const syntheticUser = {
+            uid: data.user.uid,
+            email: data.user.email,
+            displayName: data.user.name,
+            emailVerified: true,
+            isAnonymous: false,
+            metadata: {} as any,
+            providerData: [],
+            refreshToken: data.token,
+            tenantId: data.user.tenantId,
+            delete: async () => {},
+            getIdToken: async () => data.token,
+            getIdTokenResult: async () => ({} as any),
+            reload: async () => {},
+            toJSON: () => ({}),
+            phoneNumber: null,
+            photoURL: null,
+            providerId: 'password',
+          } as unknown as User;
+
+          localStorage.setItem(
+            'delivery_os_user_session',
+            JSON.stringify({
+              uid: data.user.uid,
+              email: data.user.email,
+              name: data.user.name,
+              tenantId: data.user.tenantId,
+            })
+          );
+
+          setCurrentUser(syntheticUser);
+          setUserProfile(data.user);
+          setTenant(data.tenant);
+          setCompanySettings(data.settings);
+          return;
+        } else {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody.error || 'E-mail ou senha inválidos.');
+        }
+      }
+      throw fbErr;
+    }
   };
 
   const loginWithGoogle = async () => {
@@ -280,65 +395,135 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const registerCompany = async (data: RegisterCompanyData) => {
-    const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-    const user = userCredential.user;
-    const tenantId = `tenant_${user.uid.slice(0, 10)}`;
+    isRegisteringRef.current = true;
+    try {
+      let user: any = null;
+      let tenantId = '';
 
-    const newTenant: Tenant = {
-      id: tenantId,
-      name: data.companyName,
-      tradeName: data.tradeName,
-      cnpj: data.cnpj,
-      email: data.email,
-      phone: data.phone,
-      maxStores: 10,
-      createdAt: new Date().toISOString(),
-    };
-    await createTenant(newTenant);
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+        user = userCredential.user;
+        tenantId = `tenant_${user.uid.slice(0, 10)}`;
+      } catch (fbErr: any) {
+        if (fbErr.code === 'auth/operation-not-allowed') {
+          // Direct backend registration
+          const res = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          });
 
-    const newProfile: UserProfile = {
-      uid: user.uid,
-      tenantId,
-      email: data.email,
-      name: data.adminName,
-      role: 'admin',
-      active: true,
-      createdAt: new Date().toISOString(),
-    };
-    await saveUserProfile(newProfile);
+          if (!res.ok) {
+            const errRes = await res.json().catch(() => ({}));
+            throw new Error(errRes.error || 'Falha ao registrar empresa.');
+          }
 
-    const initialSettings: CompanySettings = {
-      tenantId,
-      legalName: data.companyName,
-      tradeName: data.tradeName,
-      cnpj: data.cnpj,
-      phone: data.phone,
-      email: data.email,
-      cep: '51020-010',
-      address: 'Avenida Engenheiro Domingos Ferreira',
-      number: '1420',
-      complement: '',
-      neighborhood: 'Boa Viagem',
-      city: 'Recife',
-      state: 'PE',
-      timezone: 'America/Recife',
-      shifts: ['Geral', 'Manhã', 'Almoço / Tarde', 'Noite', 'Madrugada'],
-      updatedAt: new Date().toISOString(),
-    };
-    await saveCompanySettings(initialSettings);
+          const regData = await res.json();
+          const syntheticUser = {
+            uid: regData.user.uid,
+            email: regData.user.email,
+            displayName: regData.user.name,
+            emailVerified: true,
+            isAnonymous: false,
+            metadata: {} as any,
+            providerData: [],
+            refreshToken: regData.token,
+            tenantId: regData.user.tenantId,
+            delete: async () => {},
+            getIdToken: async () => regData.token,
+            getIdTokenResult: async () => ({} as any),
+            reload: async () => {},
+            toJSON: () => ({}),
+            phoneNumber: null,
+            photoURL: null,
+            providerId: 'password',
+          } as unknown as User;
 
-    // Seed realistic operational data for testing
-    await seedDemoDataIfEmpty(tenantId, data.tradeName);
+          localStorage.setItem(
+            'delivery_os_user_session',
+            JSON.stringify({
+              uid: regData.user.uid,
+              email: regData.user.email,
+              name: regData.user.name,
+              tenantId: regData.user.tenantId,
+            })
+          );
 
-    await createAuditLog({
-      tenantId,
-      action: 'Empresa cadastrada no SaaS',
-      entity: 'company',
-      entityId: tenantId,
-      details: `Empresa ${data.tradeName} criada por ${data.adminName}`,
-      userId: user.uid,
-      userEmail: data.email,
-    });
+          setCurrentUser(syntheticUser);
+          setUserProfile(regData.user);
+          setTenant(regData.tenant);
+          setCompanySettings(regData.settings);
+
+          await seedDemoDataIfEmpty(regData.user.tenantId, data.tradeName);
+          return;
+        }
+        throw fbErr;
+      }
+
+      const newTenant: Tenant = {
+        id: tenantId,
+        name: data.companyName,
+        tradeName: data.tradeName,
+        cnpj: data.cnpj,
+        email: data.email,
+        phone: data.phone,
+        maxStores: 10,
+        createdAt: new Date().toISOString(),
+      };
+      await createTenant(newTenant);
+
+      const newProfile: UserProfile = {
+        uid: user.uid,
+        tenantId,
+        email: data.email,
+        name: data.adminName,
+        role: 'admin',
+        active: true,
+        password: data.password,
+        createdAt: new Date().toISOString(),
+      };
+      await saveUserProfile(newProfile);
+
+      const initialSettings: CompanySettings = {
+        tenantId,
+        legalName: data.companyName,
+        tradeName: data.tradeName,
+        cnpj: data.cnpj,
+        phone: data.phone,
+        email: data.email,
+        cep: '51020-010',
+        address: 'Avenida Engenheiro Domingos Ferreira',
+        number: '1420',
+        complement: '',
+        neighborhood: 'Boa Viagem',
+        city: 'Recife',
+        state: 'PE',
+        timezone: 'America/Recife',
+        shifts: ['Geral', 'Manhã', 'Almoço / Tarde', 'Noite', 'Madrugada'],
+        updatedAt: new Date().toISOString(),
+      };
+      await saveCompanySettings(initialSettings);
+
+      // Seed realistic operational data for testing
+      await seedDemoDataIfEmpty(tenantId, data.tradeName);
+
+      await createAuditLog({
+        tenantId,
+        action: 'Empresa cadastrada no SaaS',
+        entity: 'company',
+        entityId: tenantId,
+        details: `Empresa ${data.tradeName} criada por ${data.adminName}`,
+        userId: user.uid,
+        userEmail: data.email,
+      });
+
+      setCurrentUser(user);
+      setUserProfile(newProfile);
+      setTenant(newTenant);
+      setCompanySettings(initialSettings);
+    } finally {
+      isRegisteringRef.current = false;
+    }
   };
 
   const resetPassword = async (email: string) => {
@@ -347,6 +532,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     localStorage.removeItem(MASTER_STORAGE_KEY);
+    localStorage.removeItem('delivery_os_user_session');
     setCurrentUser(null);
     setUserProfile(null);
     setTenant(null);
@@ -359,27 +545,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginAsMaster = async () => {
-    const masterEmail = MASTER_EMAIL;
-    const masterPass = 'Master@2026';
     const masterTenantId = MASTER_TENANT_ID;
-
-    // Attempt Firebase Auth sign-in if available, but do not fail if operation-not-allowed
-    try {
-      await signInWithEmailAndPassword(auth, masterEmail, masterPass);
-    } catch (signInErr: any) {
-      if (
-        signInErr.code === 'auth/user-not-found' ||
-        signInErr.code === 'auth/invalid-credential'
-      ) {
-        try {
-          await createUserWithEmailAndPassword(auth, masterEmail, masterPass);
-        } catch {
-          // Continue with master system bypass
-        }
-      }
-    }
-
-    const currentAuthUser = auth.currentUser || createSyntheticMasterUser();
+    const currentAuthUser = createSyntheticMasterUser();
     localStorage.setItem(MASTER_STORAGE_KEY, 'true');
 
     const masterProfile = getMasterProfile();
@@ -392,7 +559,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setTenant(masterTenant);
     setCompanySettings(masterSettings);
 
-    // Ensure Master documents exist in Firestore in background without blocking
+    // Ensure Master documents exist in PostgreSQL in background without blocking
     try {
       const existingTenant = await getTenant(masterTenantId);
       if (!existingTenant) {
@@ -402,7 +569,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await saveCompanySettings(masterSettings);
       await seedDemoDataIfEmpty(masterTenantId, 'Herculano Gestor (Central Master)');
     } catch (dbErr) {
-      console.warn('Firestore master background sync notice:', dbErr);
+      console.warn('PostgreSQL master background sync notice:', dbErr);
     }
   };
 

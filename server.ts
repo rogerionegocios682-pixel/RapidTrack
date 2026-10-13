@@ -37,10 +37,115 @@ app.post('/api/tenants', async (req, res) => {
   }
 });
 
-// Users
+// Users & Auth
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { companyName, tradeName, cnpj, adminName, email, password, phone } = req.body;
+    if (!email || !password || !companyName) {
+      return res.status(400).json({ error: 'Dados incompletos para cadastro.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const existing = await ops.getUserByEmail(cleanEmail);
+    if (existing) {
+      return res.status(409).json({ error: 'Este e-mail já está cadastrado no sistema.' });
+    }
+
+    const uid = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const tenantId = `tenant_${uid.slice(0, 10)}`;
+
+    const tenant = await ops.upsertTenant({
+      id: tenantId,
+      name: companyName,
+      tradeName: tradeName || companyName,
+      cnpj: cnpj || undefined,
+      email: cleanEmail,
+      phone: phone || undefined,
+      maxStores: 10,
+      createdAt: new Date().toISOString(),
+    });
+
+    const user = await ops.upsertUserProfile({
+      uid,
+      tenantId,
+      email: cleanEmail,
+      name: adminName || 'Administrador',
+      role: 'admin',
+      active: true,
+      password,
+      createdAt: new Date().toISOString(),
+    });
+
+    const settings = await ops.upsertCompanySettings({
+      tenantId,
+      legalName: companyName,
+      tradeName: tradeName || companyName,
+      cnpj: cnpj || '18.924.512/0001-44',
+      phone: phone || '(81) 3456-7890',
+      email: cleanEmail,
+      cep: '51020-010',
+      address: 'Avenida Engenheiro Domingos Ferreira',
+      number: '1420',
+      neighborhood: 'Boa Viagem',
+      city: 'Recife',
+      state: 'PE',
+      timezone: 'America/Recife',
+      shifts: ['Geral', 'Manhã', 'Almoço / Tarde', 'Noite', 'Madrugada'],
+      updatedAt: new Date().toISOString(),
+    });
+
+    res.json({
+      success: true,
+      user,
+      tenant,
+      settings,
+      token: `local_session_${uid}`,
+    });
+  } catch (error: any) {
+    console.error('Error in /api/auth/register:', error);
+    res.status(500).json({ error: error.message || 'Falha ao registrar empresa e usuário.' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Informe e-mail e senha.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await ops.getUserByEmail(cleanEmail);
+    if (!user) {
+      return res.status(401).json({ error: 'E-mail ou senha inválidos.' });
+    }
+
+    if (user.password && user.password !== password) {
+      return res.status(401).json({ error: 'E-mail ou senha inválidos.' });
+    }
+
+    const tenant = await ops.getTenantById(user.tenantId);
+    const settings = await ops.getCompanySettingsByTenant(user.tenantId);
+
+    res.json({
+      success: true,
+      user,
+      tenant,
+      settings,
+      token: `local_session_${user.uid}`,
+    });
+  } catch (error: any) {
+    console.error('Error in /api/auth/login:', error);
+    res.status(500).json({ error: error.message || 'Falha na autenticação.' });
+  }
+});
+
 app.get('/api/users/:uid', async (req, res) => {
   try {
-    const user = await ops.getUserByUid(req.params.uid);
+    let user = await ops.getUserByUid(req.params.uid);
+    if (!user && req.query.email) {
+      user = await ops.getUserByEmail(String(req.query.email).trim().toLowerCase());
+    }
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
   } catch (error: any) {

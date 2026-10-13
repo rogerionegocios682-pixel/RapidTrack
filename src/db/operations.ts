@@ -106,16 +106,38 @@ export async function getUserByUid(uid: string): Promise<UserProfile | null> {
   }
 }
 
-export async function upsertUserProfile(profile: UserProfile): Promise<UserProfile> {
+export async function getUserByEmail(email: string): Promise<(UserProfile & { password?: string | null }) | null> {
+  try {
+    const res = await db.select().from(users).where(eq(users.email, email.trim().toLowerCase())).limit(1);
+    if (!res.length) return null;
+    const u = res[0];
+    return {
+      uid: u.uid,
+      tenantId: u.tenantId,
+      email: u.email,
+      name: u.name,
+      role: u.role as any,
+      active: u.active,
+      createdAt: u.createdAt,
+      password: u.password || undefined,
+    };
+  } catch (error) {
+    console.error('getUserByEmail failed:', error);
+    throw new Error('Falha ao consultar perfil por e-mail.', { cause: error });
+  }
+}
+
+export async function upsertUserProfile(profile: UserProfile & { password?: string }): Promise<UserProfile> {
   try {
     await db
       .insert(users)
       .values({
         uid: profile.uid,
         tenantId: profile.tenantId,
-        email: profile.email,
+        email: profile.email.toLowerCase(),
         name: profile.name,
         role: profile.role,
+        password: profile.password || null,
         active: profile.active,
         createdAt: profile.createdAt || new Date().toISOString(),
       })
@@ -123,9 +145,10 @@ export async function upsertUserProfile(profile: UserProfile): Promise<UserProfi
         target: users.uid,
         set: {
           tenantId: profile.tenantId,
-          email: profile.email,
+          email: profile.email.toLowerCase(),
           name: profile.name,
           role: profile.role,
+          ...(profile.password ? { password: profile.password } : {}),
           active: profile.active,
         },
       });
