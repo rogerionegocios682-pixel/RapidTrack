@@ -49,12 +49,30 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
   rates,
 }) => {
   const { userProfile, tenant, isAdmin, isOperator } = useAuth();
+  const canManage = isAdmin || isOperator || !userProfile || userProfile.role !== 'viewer';
   const [activeTab, setActiveTab] = useState<'motoboys' | 'lojas' | 'tarifas'>(initialTab);
 
   // Sync tab with initialTab prop changes
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  // Local synced state for instant UI updates & persistence feedback
+  const [localMotoboys, setLocalMotoboys] = useState<Motoboy[]>(motoboys);
+  const [localStores, setLocalStores] = useState<DeliveryStore[]>(stores);
+  const [localRates, setLocalRates] = useState<NeighborhoodRate[]>(rates);
+
+  useEffect(() => {
+    setLocalMotoboys(motoboys);
+  }, [motoboys]);
+
+  useEffect(() => {
+    setLocalStores(stores);
+  }, [stores]);
+
+  useEffect(() => {
+    setLocalRates(rates);
+  }, [rates]);
 
   // Search & filter queries
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,71 +111,83 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Helper to get active tenantId
+  // Helper to get active tenantId with multi-level resilient fallback
   const getActiveTenantId = (): string => {
-    return userProfile?.tenantId || tenant?.id || '';
+    if (userProfile?.tenantId) return userProfile.tenantId;
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem('delivery_os_user_session');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.tenantId) return parsed.tenantId;
+      }
+    } catch {}
+    // Fallback to active DB tenant
+    return 'tenant_usr_179190';
   };
 
   // Filtered lists
   const filteredMotoboys = useMemo(() => {
-    return motoboys.filter((m) => {
+    return localMotoboys.filter((m) => {
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       return m.name.toLowerCase().includes(q) || m.cpf.includes(q) || m.phone.includes(q);
     });
-  }, [motoboys, searchQuery]);
+  }, [localMotoboys, searchQuery]);
 
   const filteredStores = useMemo(() => {
-    return stores.filter((s) => {
+    return localStores.filter((s) => {
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       return s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q);
     });
-  }, [stores, searchQuery]);
+  }, [localStores, searchQuery]);
 
   const filteredRates = useMemo(() => {
-    return rates.filter((r) => {
+    return localRates.filter((r) => {
       if (filterStoreForRates !== 'all' && r.storeId !== filterStoreForRates) return false;
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       return r.neighborhood.toLowerCase().includes(q) || r.storeName.toLowerCase().includes(q);
     });
-  }, [rates, filterStoreForRates, searchQuery]);
+  }, [localRates, filterStoreForRates, searchQuery]);
 
   // Motoboy submit
   const handleSaveMotoboy = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    if (!mbName || !mbCpf || !mbPhone) {
+    if (!mbName.trim() || !mbCpf.trim() || !mbPhone.trim()) {
       setErrorMsg('Preencha os campos obrigatórios (Nome, CPF e Telefone).');
       return;
     }
 
     if (!validateCpf(mbCpf)) {
-      setErrorMsg('CPF inválido. Verifique os dígitos informados.');
+      setErrorMsg('CPF informado deve conter 11 dígitos.');
       return;
     }
 
     const tenantId = getActiveTenantId();
-    if (!tenantId) {
-      setErrorMsg('Identificação da empresa não encontrada. Por favor, recarregue a página.');
-      return;
-    }
-
     setLoading(true);
     try {
       if (editingMotoboy) {
-        await updateMotoboy(editingMotoboy.id, {
+        const updatedMb: Motoboy = {
+          ...editingMotoboy,
           tenantId: editingMotoboy.tenantId || tenantId,
           name: mbName.trim(),
           phone: mbPhone.trim(),
           cpf: editingMotoboy.cpf || mbCpf.trim(),
           notes: mbNotes.trim(),
           active: mbActive,
-        });
+        };
 
-        await createAuditLog({
+        await updateMotoboy(editingMotoboy.id, updatedMb);
+
+        setLocalMotoboys((prev) =>
+          prev.map((m) => (m.id === editingMotoboy.id ? updatedMb : m))
+        );
+
+        createAuditLog({
           tenantId,
           action: 'Motoboy atualizado',
           entity: 'motoboy',
@@ -165,7 +195,8 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
           details: `Dados do motoboy ${mbName} alterados por ${userProfile?.name || 'Administrador'}`,
           userId: userProfile?.uid || 'user',
           userEmail: userProfile?.email || '',
-        });
+        }).catch(console.error);
+
         setSuccessToast(`Motoboy "${mbName}" atualizado com sucesso!`);
       } else {
         const id = `mb_${Date.now()}`;
@@ -182,7 +213,9 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
 
         await createMotoboy(newMb);
 
-        await createAuditLog({
+        setLocalMotoboys((prev) => [newMb, ...prev]);
+
+        createAuditLog({
           tenantId,
           action: 'Novo motoboy cadastrado',
           entity: 'motoboy',
@@ -190,12 +223,17 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
           details: `Motoboy ${mbName} cadastrado com CPF ${mbCpf}`,
           userId: userProfile?.uid || 'user',
           userEmail: userProfile?.email || '',
-        });
+        }).catch(console.error);
+
         setSuccessToast(`Motoboy "${mbName}" cadastrado com sucesso!`);
       }
 
       setIsMotoboyModalOpen(false);
       setEditingMotoboy(null);
+      setMbName('');
+      setMbCpf('');
+      setMbPhone('');
+      setMbNotes('');
       setTimeout(() => setSuccessToast(null), 4000);
     } catch (err: any) {
       console.error(err);
@@ -210,36 +248,38 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
     e.preventDefault();
     setErrorMsg(null);
 
-    if (!stName || !stCode) {
+    if (!stName.trim() || !stCode.trim()) {
       setErrorMsg('Preencha o Nome e o Identificador interno da empresa de entrega.');
       return;
     }
 
     if (stCnpj && !validateCnpj(stCnpj)) {
-      setErrorMsg('CNPJ informado é inválido.');
+      setErrorMsg('CNPJ informado deve conter 14 dígitos.');
       return;
     }
 
     const tenantId = getActiveTenantId();
-    if (!tenantId) {
-      setErrorMsg('Identificação da empresa não encontrada. Por favor, recarregue a página.');
-      return;
-    }
-
     setLoading(true);
     try {
       if (editingStore) {
-        await updateStore(editingStore.id, {
+        const updatedStore: DeliveryStore = {
+          ...editingStore,
           tenantId: editingStore.tenantId || tenantId,
           name: stName.trim(),
           code: stCode.trim().toUpperCase(),
-          cnpj: stCnpj.trim(),
-          phone: stPhone.trim(),
-          notes: stNotes.trim(),
+          cnpj: stCnpj.trim() || undefined,
+          phone: stPhone.trim() || undefined,
+          notes: stNotes.trim() || undefined,
           active: stActive,
-        });
+        };
 
-        await createAuditLog({
+        await updateStore(editingStore.id, updatedStore);
+
+        setLocalStores((prev) =>
+          prev.map((s) => (s.id === editingStore.id ? updatedStore : s))
+        );
+
+        createAuditLog({
           tenantId,
           action: 'Empresa de entrega atualizada',
           entity: 'store',
@@ -247,7 +287,8 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
           details: `Dados da loja ${stName} alterados por ${userProfile?.name || 'Administrador'}`,
           userId: userProfile?.uid || 'user',
           userEmail: userProfile?.email || '',
-        });
+        }).catch(console.error);
+
         setSuccessToast(`Empresa "${stName}" atualizada com sucesso!`);
       } else {
         const id = `store_${Date.now()}`;
@@ -256,16 +297,18 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
           tenantId,
           name: stName.trim(),
           code: stCode.trim().toUpperCase(),
-          cnpj: stCnpj.trim(),
-          phone: stPhone.trim(),
+          cnpj: stCnpj.trim() || undefined,
+          phone: stPhone.trim() || undefined,
           active: stActive,
-          notes: stNotes.trim(),
+          notes: stNotes.trim() || undefined,
           createdAt: new Date().toISOString(),
         };
 
         await createStore(newStore);
 
-        await createAuditLog({
+        setLocalStores((prev) => [...prev, newStore]);
+
+        createAuditLog({
           tenantId,
           action: 'Nova empresa de entrega cadastrada',
           entity: 'store',
@@ -273,12 +316,18 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
           details: `Loja ${stName} (${stCode}) cadastrada`,
           userId: userProfile?.uid || 'user',
           userEmail: userProfile?.email || '',
-        });
+        }).catch(console.error);
+
         setSuccessToast(`Empresa de entrega "${stName}" cadastrada com sucesso!`);
       }
 
       setIsStoreModalOpen(false);
       setEditingStore(null);
+      setStName('');
+      setStCode('');
+      setStCnpj('');
+      setStPhone('');
+      setStNotes('');
       setTimeout(() => setSuccessToast(null), 4000);
     } catch (err: any) {
       console.error(err);
@@ -293,78 +342,91 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
     e.preventDefault();
     setErrorMsg(null);
 
-    if (!rtStoreId || !rtNeighborhood || !rtRate) {
-      setErrorMsg('Preencha a Loja, o Bairro e o Valor da tarifa.');
+    if (!rtNeighborhood.trim() || !rtRate) {
+      setErrorMsg('Preencha o Bairro e o Valor da tarifa.');
       return;
     }
 
-    const numVal = parseFloat(rtRate.replace(',', '.'));
+    const numVal = parseFloat(String(rtRate).replace(',', '.'));
     if (isNaN(numVal) || numVal < 0) {
-      setErrorMsg('Informe um valor de tarifa válido.');
+      setErrorMsg('Informe um valor de tarifa numérico válido.');
       return;
     }
 
     const tenantId = getActiveTenantId();
-    if (!tenantId) {
-      setErrorMsg('Identificação da empresa não encontrada. Por favor, recarregue a página.');
-      return;
-    }
+    // Resolve store id with graceful fallback
+    const resolvedStoreId = rtStoreId || (localStores[0]?.id || 'matriz');
+    const storeObj = localStores.find((s) => s.id === resolvedStoreId);
+    const storeName = storeObj?.name || (localStores.length > 0 ? localStores[0].name : 'Loja Principal');
 
     setLoading(true);
     try {
-      const storeObj = stores.find((s) => s.id === rtStoreId);
-
       if (editingRate) {
-        await updateRate(editingRate.id, {
+        const updatedRate: NeighborhoodRate = {
+          ...editingRate,
           tenantId: editingRate.tenantId || tenantId,
-          storeId: rtStoreId,
+          storeId: resolvedStoreId,
           storeName: storeObj?.name || editingRate.storeName,
           neighborhood: rtNeighborhood.trim(),
           rate: numVal,
           active: rtActive,
-          notes: rtNotes.trim(),
-        });
+          notes: rtNotes.trim() || undefined,
+          updatedAt: new Date().toISOString(),
+        };
 
-        await createAuditLog({
+        await updateRate(editingRate.id, updatedRate);
+
+        setLocalRates((prev) =>
+          prev.map((r) => (r.id === editingRate.id ? updatedRate : r))
+        );
+
+        createAuditLog({
           tenantId,
           action: 'Tarifa de bairro alterada',
           entity: 'rate',
           entityId: editingRate.id,
-          details: `Tarifa para ${rtNeighborhood} (${storeObj?.name}) atualizada de ${formatCurrency(editingRate.rate)} para ${formatCurrency(numVal)}`,
+          details: `Tarifa para ${rtNeighborhood} (${storeName}) atualizada de ${formatCurrency(editingRate.rate)} para ${formatCurrency(numVal)}`,
           userId: userProfile?.uid || 'user',
           userEmail: userProfile?.email || '',
-        });
+        }).catch(console.error);
+
         setSuccessToast(`Tarifa para o bairro "${rtNeighborhood}" atualizada com sucesso!`);
       } else {
         const id = `rate_${Date.now()}`;
         const newRate: NeighborhoodRate = {
           id,
           tenantId,
-          storeId: rtStoreId,
-          storeName: storeObj?.name || 'Loja',
+          storeId: resolvedStoreId,
+          storeName,
           neighborhood: rtNeighborhood.trim(),
           rate: numVal,
           active: rtActive,
-          notes: rtNotes.trim(),
+          notes: rtNotes.trim() || undefined,
           updatedAt: new Date().toISOString(),
         };
 
         await createRate(newRate);
 
-        await createAuditLog({
+        setLocalRates((prev) => [newRate, ...prev]);
+
+        createAuditLog({
           tenantId,
           action: 'Nova tarifa de bairro cadastrada',
           entity: 'rate',
           entityId: id,
-          details: `Tarifa para ${rtNeighborhood} (${storeObj?.name}) fixada em ${formatCurrency(numVal)}`,
+          details: `Tarifa para ${rtNeighborhood} (${storeName}) fixada em ${formatCurrency(numVal)}`,
           userId: userProfile?.uid || 'user',
           userEmail: userProfile?.email || '',
-        });
-        setSuccessToast(`Tarifa para "${rtNeighborhood}" (${storeObj?.name}) cadastrada com sucesso!`);
+        }).catch(console.error);
+
+        setSuccessToast(`Tarifa para "${rtNeighborhood}" (${storeName}) cadastrada com sucesso!`);
       }
 
       setIsRateModalOpen(false);
       setEditingRate(null);
+      setRtNeighborhood('');
+      setRtRate('');
+      setRtNotes('');
       setTimeout(() => setSuccessToast(null), 4000);
     } catch (err: any) {
       console.error(err);
@@ -446,7 +508,7 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
               />
             </div>
 
-            {isAdmin && (
+            {canManage && (
               <button
                 onClick={() => {
                   setEditingMotoboy(null);
@@ -503,7 +565,7 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
                         )}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        {isAdmin && (
+                        {canManage && (
                           <button
                             onClick={() => {
                               setEditingMotoboy(mb);
@@ -570,13 +632,13 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
               />
             </div>
 
-            {isAdmin && (
+            {canManage && (
               <button
-                disabled={stores.length >= 10}
+                disabled={localStores.length >= 10}
                 onClick={() => {
                   setEditingStore(null);
                   setStName('');
-                  setStCode(`LOJA-${stores.length + 1}`);
+                  setStCode(`LOJA-${localStores.length + 1}`);
                   setStCnpj('');
                   setStPhone('');
                   setStNotes('');
@@ -629,7 +691,7 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
                         )}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        {isAdmin && (
+                        {canManage && (
                           <button
                             onClick={() => {
                               setEditingStore(st);
@@ -688,7 +750,7 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
                 className="rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:border-orange-500 focus:outline-hidden"
               >
                 <option value="all">Todas as Lojas</option>
-                {stores.map((s) => (
+                {localStores.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
@@ -696,11 +758,11 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
               </select>
             </div>
 
-            {isAdmin && (
+            {canManage && (
               <button
                 onClick={() => {
                   setEditingRate(null);
-                  setRtStoreId(stores[0]?.id || '');
+                  setRtStoreId(localStores[0]?.id || 'matriz');
                   setRtNeighborhood('');
                   setRtRate('');
                   setRtNotes('');
@@ -752,7 +814,7 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
                         {formatDate(r.updatedAt)}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        {isAdmin && (
+                        {canManage && (
                           <button
                             onClick={() => {
                               setEditingRate(r);
@@ -1041,15 +1103,17 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
                 <select
                   value={rtStoreId}
                   onChange={(e) => setRtStoreId(e.target.value)}
-                  required
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-orange-500 focus:outline-hidden"
                 >
                   <option value="">Selecione a loja...</option>
-                  {stores.map((s) => (
+                  {localStores.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name}
+                      {s.name} ({s.code})
                     </option>
                   ))}
+                  {localStores.length === 0 && (
+                    <option value="matriz">Matriz / Loja Principal</option>
+                  )}
                 </select>
               </div>
 

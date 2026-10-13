@@ -21,13 +21,13 @@ import type {
 type Listener<T> = (data: T) => void;
 
 class RealtimeHub {
-  private motoboyListeners = new Map<string, Set<Listener<Motoboy[]>>>();
-  private storeListeners = new Map<string, Set<Listener<DeliveryStore[]>>>();
-  private rateListeners = new Map<string, Set<Listener<NeighborhoodRate[]>>>();
-  private orderListeners = new Map<string, Set<Listener<DeliveryOrder[]>>>();
-  private closingListeners = new Map<string, Set<Listener<ShiftClosing[]>>>();
-  private auditListeners = new Map<string, Set<Listener<AuditLog[]>>>();
-  private notifListeners = new Map<string, Set<Listener<AppNotification[]>>>();
+  public motoboyListeners = new Map<string, Set<Listener<Motoboy[]>>>();
+  public storeListeners = new Map<string, Set<Listener<DeliveryStore[]>>>();
+  public rateListeners = new Map<string, Set<Listener<NeighborhoodRate[]>>>();
+  public orderListeners = new Map<string, Set<Listener<DeliveryOrder[]>>>();
+  public closingListeners = new Map<string, Set<Listener<ShiftClosing[]>>>();
+  public auditListeners = new Map<string, Set<Listener<AuditLog[]>>>();
+  public notifListeners = new Map<string, Set<Listener<AppNotification[]>>>();
 
   // Cached states
   public motoboys = new Map<string, Motoboy[]>();
