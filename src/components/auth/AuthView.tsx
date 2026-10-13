@@ -62,6 +62,8 @@ export const AuthView: React.FC = () => {
       console.error(err);
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setErrorMsg('E-mail ou senha inválidos. Verifique suas credenciais.');
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setErrorMsg('O login por e-mail/senha não está ativo no Firebase Authentication deste projeto. Utilize o acesso com Google ou usuário master.');
       } else if (err.code === 'auth/too-many-requests') {
         setErrorMsg('Muitas tentativas sem sucesso. Tente novamente mais tarde.');
       } else {
@@ -126,6 +128,8 @@ export const AuthView: React.FC = () => {
       console.error(err);
       if (err.code === 'auth/email-already-in-use') {
         setErrorMsg('Este e-mail já está em uso por outro usuário.');
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setErrorMsg('O cadastro por e-mail/senha não está habilitado no Firebase Authentication deste projeto. Utilize o login com Google.');
       } else {
         setErrorMsg(err.message || 'Erro ao criar conta empresarial.');
       }

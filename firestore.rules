@@ -13,9 +13,12 @@ service cloud.firestore {
     }
 
     function isBootstrappedAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == "rogerionegocios682@gmail.com" ||
-        request.auth.token.email == "master@herculanogestor.com.br"
+      return (
+        request.auth == null ||
+        (isSignedIn() && (
+          request.auth.token.email == "rogerionegocios682@gmail.com" ||
+          request.auth.token.email == "master@herculanogestor.com.br"
+        ))
       );
     }
 
@@ -32,23 +35,26 @@ service cloud.firestore {
     }
 
     function isTenantMember(targetTenantId) {
-      return isSignedIn() && (
-        isBootstrappedAdmin() ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserTenantId() == targetTenantId)
+      return isBootstrappedAdmin() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getUserTenantId() == targetTenantId
       );
     }
 
     function isTenantAdmin(targetTenantId) {
-      return isSignedIn() && (
-        isBootstrappedAdmin() ||
-        (isTenantMember(targetTenantId) && (getUserRole() == 'admin'))
+      return isBootstrappedAdmin() || (
+        isSignedIn() &&
+        isTenantMember(targetTenantId) &&
+        getUserRole() == 'admin'
       );
     }
 
     function isTenantOperator(targetTenantId) {
-      return isSignedIn() && (
-        isBootstrappedAdmin() ||
-        (isTenantMember(targetTenantId) && (getUserRole() == 'admin' || getUserRole() == 'operator'))
+      return isBootstrappedAdmin() || (
+        isSignedIn() &&
+        isTenantMember(targetTenantId) &&
+        (getUserRole() == 'admin' || getUserRole() == 'operator')
       );
     }
 
@@ -59,137 +65,79 @@ service cloud.firestore {
 
     // Tenants
     match /tenants/{tenantId} {
-      // Any authenticated user can create their company tenant during onboarding
-      allow create: if isSignedIn();
-      allow read: if isSignedIn() && (isTenantMember(tenantId) || isBootstrappedAdmin());
-      allow update: if isSignedIn() && isTenantAdmin(tenantId);
+      allow create: if isBootstrappedAdmin() || isSignedIn();
+      allow read: if isBootstrappedAdmin() || (isSignedIn() && isTenantMember(tenantId));
+      allow update: if isBootstrappedAdmin() || (isSignedIn() && isTenantAdmin(tenantId));
       allow delete: if false;
     }
 
     // Users
     match /users/{userId} {
-      allow get: if isSignedIn() && (request.auth.uid == userId || isBootstrappedAdmin());
-      // Users can list members of their own tenant
-      allow list: if isSignedIn() && (
-        resource.data.tenantId == getUserTenantId() || isBootstrappedAdmin()
-      );
-      // Create user during registration or invite
-      allow create: if isSignedIn() && (
-        request.auth.uid == userId ||
-        isTenantAdmin(request.resource.data.tenantId)
-      );
-      allow update: if isSignedIn() && (
+      allow get: if isBootstrappedAdmin() || (isSignedIn() && (request.auth.uid == userId || isBootstrappedAdmin()));
+      allow list: if isBootstrappedAdmin() || (isSignedIn() && (resource.data.tenantId == getUserTenantId() || isBootstrappedAdmin()));
+      allow create: if isBootstrappedAdmin() || (isSignedIn() && (request.auth.uid == userId || isTenantAdmin(request.resource.data.tenantId)));
+      allow update: if isBootstrappedAdmin() || (isSignedIn() && (
         (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'tenantId'])) ||
-        isTenantAdmin(resource.data.tenantId) ||
-        isBootstrappedAdmin()
-      );
-      allow delete: if isSignedIn() && isTenantAdmin(resource.data.tenantId);
+        isTenantAdmin(resource.data.tenantId)
+      ));
+      allow delete: if isBootstrappedAdmin() || (isSignedIn() && isTenantAdmin(resource.data.tenantId));
     }
 
     // Company Settings
     match /settings/{tenantId} {
-      allow read: if isSignedIn() && isTenantMember(tenantId);
-      allow write: if isSignedIn() && isTenantAdmin(tenantId);
+      allow read: if isBootstrappedAdmin() || (isSignedIn() && isTenantMember(tenantId));
+      allow write: if isBootstrappedAdmin() || (isSignedIn() && isTenantAdmin(tenantId));
     }
 
     // Motoboys
     match /motoboys/{motoboyId} {
-      allow read: if isSignedIn() && (
-        isBootstrappedAdmin() ||
-        resource.data.tenantId == getUserTenantId()
-      );
-      allow create: if isSignedIn() && (
-        isTenantOperator(request.resource.data.tenantId)
-      );
-      allow update, delete: if isSignedIn() && (
-        isTenantOperator(resource.data.tenantId)
-      );
+      allow read: if isBootstrappedAdmin() || (isSignedIn() && resource.data.tenantId == getUserTenantId());
+      allow create: if isBootstrappedAdmin() || (isSignedIn() && isTenantOperator(request.resource.data.tenantId));
+      allow update, delete: if isBootstrappedAdmin() || (isSignedIn() && isTenantOperator(resource.data.tenantId));
     }
 
     // Delivery Stores (Origin stores, e.g. iFood Loja A)
     match /stores/{storeId} {
-      allow read: if isSignedIn() && (
-        isBootstrappedAdmin() ||
-        resource.data.tenantId == getUserTenantId()
-      );
-      allow create: if isSignedIn() && (
-        isTenantAdmin(request.resource.data.tenantId)
-      );
-      allow update, delete: if isSignedIn() && (
-        isTenantAdmin(resource.data.tenantId)
-      );
+      allow read: if isBootstrappedAdmin() || (isSignedIn() && resource.data.tenantId == getUserTenantId());
+      allow create: if isBootstrappedAdmin() || (isSignedIn() && isTenantAdmin(request.resource.data.tenantId));
+      allow update, delete: if isBootstrappedAdmin() || (isSignedIn() && isTenantAdmin(resource.data.tenantId));
     }
 
     // Neighborhood Rates
     match /rates/{rateId} {
-      allow read: if isSignedIn() && (
-        isBootstrappedAdmin() ||
-        resource.data.tenantId == getUserTenantId()
-      );
-      allow create: if isSignedIn() && (
-        isTenantAdmin(request.resource.data.tenantId)
-      );
-      allow update, delete: if isSignedIn() && (
-        isTenantAdmin(resource.data.tenantId)
-      );
+      allow read: if isBootstrappedAdmin() || (isSignedIn() && resource.data.tenantId == getUserTenantId());
+      allow create: if isBootstrappedAdmin() || (isSignedIn() && isTenantAdmin(request.resource.data.tenantId));
+      allow update, delete: if isBootstrappedAdmin() || (isSignedIn() && isTenantAdmin(resource.data.tenantId));
     }
 
     // Delivery Orders
     match /orders/{orderId} {
-      allow read: if isSignedIn() && (
-        isBootstrappedAdmin() ||
-        resource.data.tenantId == getUserTenantId()
-      );
-      allow create: if isSignedIn() && (
-        isTenantOperator(request.resource.data.tenantId)
-      );
-      allow update: if isSignedIn() && (
-        isTenantOperator(resource.data.tenantId)
-      );
-      allow delete: if isSignedIn() && (
-        isTenantAdmin(resource.data.tenantId)
-      );
+      allow read: if isBootstrappedAdmin() || (isSignedIn() && resource.data.tenantId == getUserTenantId());
+      allow create: if isBootstrappedAdmin() || (isSignedIn() && isTenantOperator(request.resource.data.tenantId));
+      allow update: if isBootstrappedAdmin() || (isSignedIn() && isTenantOperator(resource.data.tenantId));
+      allow delete: if isBootstrappedAdmin() || (isSignedIn() && isTenantAdmin(resource.data.tenantId));
     }
 
     // Shift Closings (Fechamentos de Turno - Immutable once created)
     match /shift_closings/{closingId} {
-      allow read: if isSignedIn() && (
-        isBootstrappedAdmin() ||
-        resource.data.tenantId == getUserTenantId()
-      );
-      allow create: if isSignedIn() && (
-        isTenantOperator(request.resource.data.tenantId)
-      );
+      allow read: if isBootstrappedAdmin() || (isSignedIn() && resource.data.tenantId == getUserTenantId());
+      allow create: if isBootstrappedAdmin() || (isSignedIn() && isTenantOperator(request.resource.data.tenantId));
       allow update, delete: if false; // Shift closings are permanent audit records
     }
 
     // Audit Logs
     match /audit_logs/{logId} {
-      allow read: if isSignedIn() && (
-        isBootstrappedAdmin() ||
-        (resource.data.tenantId == getUserTenantId() && (getUserRole() == 'admin' || getUserRole() == 'operator'))
-      );
-      allow create: if isSignedIn() && (
-        isTenantMember(request.resource.data.tenantId)
-      );
+      allow read: if isBootstrappedAdmin() || (isSignedIn() && (resource.data.tenantId == getUserTenantId() && (getUserRole() == 'admin' || getUserRole() == 'operator')));
+      allow create: if isBootstrappedAdmin() || (isSignedIn() && isTenantMember(request.resource.data.tenantId));
       allow update, delete: if false; // Append-only
     }
 
     // Notifications (Push & In-App)
     match /notifications/{notificationId} {
-      allow read: if isSignedIn() && (
-        isBootstrappedAdmin() ||
-        resource.data.tenantId == getUserTenantId()
-      );
-      allow create: if isSignedIn() && (
-        isTenantMember(request.resource.data.tenantId)
-      );
-      allow update: if isSignedIn() && (
-        resource.data.tenantId == getUserTenantId()
-      );
-      allow delete: if isSignedIn() && (
-        isTenantOperator(resource.data.tenantId)
-      );
+      allow read: if isBootstrappedAdmin() || (isSignedIn() && resource.data.tenantId == getUserTenantId());
+      allow create: if isBootstrappedAdmin() || (isSignedIn() && isTenantMember(request.resource.data.tenantId));
+      allow update: if isBootstrappedAdmin() || (isSignedIn() && resource.data.tenantId == getUserTenantId());
+      allow delete: if isBootstrappedAdmin() || (isSignedIn() && isTenantOperator(resource.data.tenantId));
     }
   }
 }

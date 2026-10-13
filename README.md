@@ -76,12 +76,14 @@ O **Delivery OS** foi arquitetado seguindo os padrões modernos de software como
    - Empresas parceiras de entrega com trava no servidor para o limite de 10 lojas do plano inicial.
    - Tabela individual de bairros e tarifas por loja.
 
-5. **Relatórios Gerenciais:**
-   - Relatório por Empresa de Entrega com subtotais.
-   - Extrato individual por motoboy com CPF mascarado (`***.***.123-**`).
-   - Relatório consolidado mensal.
-   - Ranking por quantidade de entregas concluídas (desempate por última entrega).
-   - Exportação em PDF e CSV.
+5. **Relatórios Gerenciais e Exportação Completa (PDF e CSV):**
+   - Relatório por Empresa de Entrega com subtotais e linha consolidada.
+   - Extrato individual por motoboy com CPF mascarado (`***.***.123-**`) e detalhamento de corridas.
+   - Relatório consolidado mensal com exportação de todas as corridas do período.
+   - Ranking de produtividade com dados de contato e critérios de desempate.
+   - Histórico de fechamentos com resumo financeiro.
+   - **Exportação CSV em todas as visualizações:** arquivos compatíveis com Excel/Google Sheets, usando delimitador ponto-e-vírgula (`;`), encoding UTF-8 com BOM e formatação monetária padrão brasileiro (`R$`).
+   - Geração de arquivos PDF oficiais e diagramados para impressão.
 
 6. **Empresa Administradora:**
    - Logomarca com upload e persistência integrada em todo o sistema e relatórios.
