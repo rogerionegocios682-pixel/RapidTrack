@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Bike,
   Store,
@@ -12,6 +12,7 @@ import {
   Phone,
   ShieldCheck,
   TrendingUp,
+  Check,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -47,8 +48,13 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
   stores,
   rates,
 }) => {
-  const { userProfile, isAdmin, isOperator } = useAuth();
+  const { userProfile, tenant, isAdmin, isOperator } = useAuth();
   const [activeTab, setActiveTab] = useState<'motoboys' | 'lojas' | 'tarifas'>(initialTab);
+
+  // Sync tab with initialTab prop changes
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   // Search & filter queries
   const [searchQuery, setSearchQuery] = useState('');
@@ -84,7 +90,13 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
 
   // Error/Success state
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Helper to get active tenantId
+  const getActiveTenantId = (): string => {
+    return userProfile?.tenantId || tenant?.id || '';
+  };
 
   // Filtered lists
   const filteredMotoboys = useMemo(() => {
@@ -127,32 +139,39 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
       return;
     }
 
-    if (!userProfile?.tenantId) return;
+    const tenantId = getActiveTenantId();
+    if (!tenantId) {
+      setErrorMsg('Identificação da empresa não encontrada. Por favor, recarregue a página.');
+      return;
+    }
 
     setLoading(true);
     try {
       if (editingMotoboy) {
         await updateMotoboy(editingMotoboy.id, {
+          tenantId: editingMotoboy.tenantId || tenantId,
           name: mbName.trim(),
           phone: mbPhone.trim(),
+          cpf: editingMotoboy.cpf || mbCpf.trim(),
           notes: mbNotes.trim(),
           active: mbActive,
         });
 
         await createAuditLog({
-          tenantId: userProfile.tenantId,
+          tenantId,
           action: 'Motoboy atualizado',
           entity: 'motoboy',
           entityId: editingMotoboy.id,
-          details: `Dados do motoboy ${mbName} alterados por ${userProfile.name}`,
-          userId: userProfile.uid,
-          userEmail: userProfile.email,
+          details: `Dados do motoboy ${mbName} alterados por ${userProfile?.name || 'Administrador'}`,
+          userId: userProfile?.uid || 'user',
+          userEmail: userProfile?.email || '',
         });
+        setSuccessToast(`Motoboy "${mbName}" atualizado com sucesso!`);
       } else {
         const id = `mb_${Date.now()}`;
         const newMb: Motoboy = {
           id,
-          tenantId: userProfile.tenantId,
+          tenantId,
           name: mbName.trim(),
           cpf: mbCpf.trim(),
           phone: mbPhone.trim(),
@@ -164,18 +183,20 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
         await createMotoboy(newMb);
 
         await createAuditLog({
-          tenantId: userProfile.tenantId,
+          tenantId,
           action: 'Novo motoboy cadastrado',
           entity: 'motoboy',
           entityId: id,
           details: `Motoboy ${mbName} cadastrado com CPF ${mbCpf}`,
-          userId: userProfile.uid,
-          userEmail: userProfile.email,
+          userId: userProfile?.uid || 'user',
+          userEmail: userProfile?.email || '',
         });
+        setSuccessToast(`Motoboy "${mbName}" cadastrado com sucesso!`);
       }
 
       setIsMotoboyModalOpen(false);
       setEditingMotoboy(null);
+      setTimeout(() => setSuccessToast(null), 4000);
     } catch (err: any) {
       console.error(err);
       setErrorMsg(err.message || 'Erro ao salvar motoboy.');
@@ -199,12 +220,17 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
       return;
     }
 
-    if (!userProfile?.tenantId) return;
+    const tenantId = getActiveTenantId();
+    if (!tenantId) {
+      setErrorMsg('Identificação da empresa não encontrada. Por favor, recarregue a página.');
+      return;
+    }
 
     setLoading(true);
     try {
       if (editingStore) {
         await updateStore(editingStore.id, {
+          tenantId: editingStore.tenantId || tenantId,
           name: stName.trim(),
           code: stCode.trim().toUpperCase(),
           cnpj: stCnpj.trim(),
@@ -214,19 +240,20 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
         });
 
         await createAuditLog({
-          tenantId: userProfile.tenantId,
+          tenantId,
           action: 'Empresa de entrega atualizada',
           entity: 'store',
           entityId: editingStore.id,
-          details: `Dados da loja ${stName} alterados por ${userProfile.name}`,
-          userId: userProfile.uid,
-          userEmail: userProfile.email,
+          details: `Dados da loja ${stName} alterados por ${userProfile?.name || 'Administrador'}`,
+          userId: userProfile?.uid || 'user',
+          userEmail: userProfile?.email || '',
         });
+        setSuccessToast(`Empresa "${stName}" atualizada com sucesso!`);
       } else {
         const id = `store_${Date.now()}`;
         const newStore: DeliveryStore = {
           id,
-          tenantId: userProfile.tenantId,
+          tenantId,
           name: stName.trim(),
           code: stCode.trim().toUpperCase(),
           cnpj: stCnpj.trim(),
@@ -239,18 +266,20 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
         await createStore(newStore);
 
         await createAuditLog({
-          tenantId: userProfile.tenantId,
+          tenantId,
           action: 'Nova empresa de entrega cadastrada',
           entity: 'store',
           entityId: id,
           details: `Loja ${stName} (${stCode}) cadastrada`,
-          userId: userProfile.uid,
-          userEmail: userProfile.email,
+          userId: userProfile?.uid || 'user',
+          userEmail: userProfile?.email || '',
         });
+        setSuccessToast(`Empresa de entrega "${stName}" cadastrada com sucesso!`);
       }
 
       setIsStoreModalOpen(false);
       setEditingStore(null);
+      setTimeout(() => setSuccessToast(null), 4000);
     } catch (err: any) {
       console.error(err);
       setErrorMsg(err.message || 'Erro ao salvar empresa.');
@@ -275,7 +304,11 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
       return;
     }
 
-    if (!userProfile?.tenantId) return;
+    const tenantId = getActiveTenantId();
+    if (!tenantId) {
+      setErrorMsg('Identificação da empresa não encontrada. Por favor, recarregue a página.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -283,6 +316,7 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
 
       if (editingRate) {
         await updateRate(editingRate.id, {
+          tenantId: editingRate.tenantId || tenantId,
           storeId: rtStoreId,
           storeName: storeObj?.name || editingRate.storeName,
           neighborhood: rtNeighborhood.trim(),
@@ -292,19 +326,20 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
         });
 
         await createAuditLog({
-          tenantId: userProfile.tenantId,
+          tenantId,
           action: 'Tarifa de bairro alterada',
           entity: 'rate',
           entityId: editingRate.id,
           details: `Tarifa para ${rtNeighborhood} (${storeObj?.name}) atualizada de ${formatCurrency(editingRate.rate)} para ${formatCurrency(numVal)}`,
-          userId: userProfile.uid,
-          userEmail: userProfile.email,
+          userId: userProfile?.uid || 'user',
+          userEmail: userProfile?.email || '',
         });
+        setSuccessToast(`Tarifa para o bairro "${rtNeighborhood}" atualizada com sucesso!`);
       } else {
         const id = `rate_${Date.now()}`;
         const newRate: NeighborhoodRate = {
           id,
-          tenantId: userProfile.tenantId,
+          tenantId,
           storeId: rtStoreId,
           storeName: storeObj?.name || 'Loja',
           neighborhood: rtNeighborhood.trim(),
@@ -317,18 +352,20 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
         await createRate(newRate);
 
         await createAuditLog({
-          tenantId: userProfile.tenantId,
+          tenantId,
           action: 'Nova tarifa de bairro cadastrada',
           entity: 'rate',
           entityId: id,
           details: `Tarifa para ${rtNeighborhood} (${storeObj?.name}) fixada em ${formatCurrency(numVal)}`,
-          userId: userProfile.uid,
-          userEmail: userProfile.email,
+          userId: userProfile?.uid || 'user',
+          userEmail: userProfile?.email || '',
         });
+        setSuccessToast(`Tarifa para "${rtNeighborhood}" (${storeObj?.name}) cadastrada com sucesso!`);
       }
 
       setIsRateModalOpen(false);
       setEditingRate(null);
+      setTimeout(() => setSuccessToast(null), 4000);
     } catch (err: any) {
       console.error(err);
       setErrorMsg(err.message || 'Erro ao salvar tarifa.');
@@ -383,6 +420,14 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Success Feedback Notification Toast */}
+      {successToast && (
+        <div className="flex items-center gap-2.5 rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-800 border border-emerald-200 shadow-sm animate-fade-in">
+          <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+          <span>{successToast}</span>
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* TAB 1: MOTOBOYS */}

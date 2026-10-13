@@ -267,34 +267,59 @@ export async function getMotoboysByTenant(tenantId: string): Promise<Motoboy[]> 
   }
 }
 
-export async function upsertMotoboy(item: Motoboy): Promise<Motoboy> {
+export async function upsertMotoboy(item: Partial<Motoboy> & { id: string }): Promise<Motoboy> {
   try {
-    await db
-      .insert(motoboys)
-      .values({
+    const existing = await db.select().from(motoboys).where(eq(motoboys.id, item.id)).limit(1);
+    if (existing.length > 0) {
+      const cur = existing[0];
+      const updated = {
+        name: item.name !== undefined ? item.name : cur.name,
+        cpf: item.cpf !== undefined ? item.cpf : cur.cpf,
+        phone: item.phone !== undefined ? item.phone : cur.phone,
+        active: item.active !== undefined ? item.active : cur.active,
+        notes: item.notes !== undefined ? (item.notes || null) : cur.notes,
+        tenantId: item.tenantId || cur.tenantId,
+      };
+      await db.update(motoboys).set(updated).where(eq(motoboys.id, item.id));
+      return {
+        id: item.id,
+        tenantId: updated.tenantId,
+        name: updated.name,
+        cpf: updated.cpf,
+        phone: updated.phone,
+        active: updated.active,
+        notes: updated.notes || undefined,
+        createdAt: cur.createdAt,
+      };
+    } else {
+      if (!item.tenantId || !item.name || !item.cpf || !item.phone) {
+        throw new Error('Preencha os campos obrigatórios para cadastrar o motoboy.');
+      }
+      const newMb = {
         id: item.id,
         tenantId: item.tenantId,
         name: item.name,
         cpf: item.cpf,
         phone: item.phone,
-        active: item.active,
+        active: item.active ?? true,
         notes: item.notes || null,
         createdAt: item.createdAt || new Date().toISOString(),
-      })
-      .onConflictDoUpdate({
-        target: motoboys.id,
-        set: {
-          name: item.name,
-          cpf: item.cpf,
-          phone: item.phone,
-          active: item.active,
-          notes: item.notes || null,
-        },
-      });
-    return item;
-  } catch (error) {
+      };
+      await db.insert(motoboys).values(newMb);
+      return {
+        id: newMb.id,
+        tenantId: newMb.tenantId,
+        name: newMb.name,
+        cpf: newMb.cpf,
+        phone: newMb.phone,
+        active: newMb.active,
+        notes: newMb.notes || undefined,
+        createdAt: newMb.createdAt,
+      };
+    }
+  } catch (error: any) {
     console.error('upsertMotoboy failed:', error);
-    throw new Error('Falha ao salvar motoboy.', { cause: error });
+    throw new Error(error.message || 'Falha ao salvar motoboy.', { cause: error });
   }
 }
 
@@ -331,36 +356,63 @@ export async function getStoresByTenant(tenantId: string): Promise<DeliveryStore
   }
 }
 
-export async function upsertStore(item: DeliveryStore): Promise<DeliveryStore> {
+export async function upsertStore(item: Partial<DeliveryStore> & { id: string }): Promise<DeliveryStore> {
   try {
-    await db
-      .insert(deliveryStores)
-      .values({
+    const existing = await db.select().from(deliveryStores).where(eq(deliveryStores.id, item.id)).limit(1);
+    if (existing.length > 0) {
+      const cur = existing[0];
+      const updated = {
+        name: item.name !== undefined ? item.name : cur.name,
+        code: item.code !== undefined ? item.code : cur.code,
+        cnpj: item.cnpj !== undefined ? (item.cnpj || null) : cur.cnpj,
+        phone: item.phone !== undefined ? (item.phone || null) : cur.phone,
+        active: item.active !== undefined ? item.active : cur.active,
+        notes: item.notes !== undefined ? (item.notes || null) : cur.notes,
+        tenantId: item.tenantId || cur.tenantId,
+      };
+      await db.update(deliveryStores).set(updated).where(eq(deliveryStores.id, item.id));
+      return {
+        id: item.id,
+        tenantId: updated.tenantId,
+        name: updated.name,
+        code: updated.code,
+        cnpj: updated.cnpj || undefined,
+        phone: updated.phone || undefined,
+        active: updated.active,
+        notes: updated.notes || undefined,
+        createdAt: cur.createdAt,
+      };
+    } else {
+      if (!item.tenantId || !item.name || !item.code) {
+        throw new Error('Preencha os campos obrigatórios para cadastrar empresa de entrega.');
+      }
+      const newSt = {
         id: item.id,
         tenantId: item.tenantId,
         name: item.name,
         code: item.code,
         cnpj: item.cnpj || null,
         phone: item.phone || null,
-        active: item.active,
+        active: item.active ?? true,
         notes: item.notes || null,
         createdAt: item.createdAt || new Date().toISOString(),
-      })
-      .onConflictDoUpdate({
-        target: deliveryStores.id,
-        set: {
-          name: item.name,
-          code: item.code,
-          cnpj: item.cnpj || null,
-          phone: item.phone || null,
-          active: item.active,
-          notes: item.notes || null,
-        },
-      });
-    return item;
-  } catch (error) {
+      };
+      await db.insert(deliveryStores).values(newSt);
+      return {
+        id: newSt.id,
+        tenantId: newSt.tenantId,
+        name: newSt.name,
+        code: newSt.code,
+        cnpj: newSt.cnpj || undefined,
+        phone: newSt.phone || undefined,
+        active: newSt.active,
+        notes: newSt.notes || undefined,
+        createdAt: newSt.createdAt,
+      };
+    }
+  } catch (error: any) {
     console.error('upsertStore failed:', error);
-    throw new Error('Falha ao salvar loja.', { cause: error });
+    throw new Error(error.message || 'Falha ao salvar loja.', { cause: error });
   }
 }
 
@@ -397,37 +449,64 @@ export async function getRatesByTenant(tenantId: string): Promise<NeighborhoodRa
   }
 }
 
-export async function upsertRate(item: NeighborhoodRate): Promise<NeighborhoodRate> {
+export async function upsertRate(item: Partial<NeighborhoodRate> & { id: string }): Promise<NeighborhoodRate> {
   try {
-    await db
-      .insert(neighborhoodRates)
-      .values({
+    const existing = await db.select().from(neighborhoodRates).where(eq(neighborhoodRates.id, item.id)).limit(1);
+    if (existing.length > 0) {
+      const cur = existing[0];
+      const updated = {
+        storeId: item.storeId !== undefined ? item.storeId : cur.storeId,
+        storeName: item.storeName !== undefined ? item.storeName : cur.storeName,
+        neighborhood: item.neighborhood !== undefined ? item.neighborhood : cur.neighborhood,
+        rate: item.rate !== undefined ? item.rate : cur.rate,
+        active: item.active !== undefined ? item.active : cur.active,
+        notes: item.notes !== undefined ? (item.notes || null) : cur.notes,
+        tenantId: item.tenantId || cur.tenantId,
+        updatedAt: item.updatedAt || new Date().toISOString(),
+      };
+      await db.update(neighborhoodRates).set(updated).where(eq(neighborhoodRates.id, item.id));
+      return {
+        id: item.id,
+        tenantId: updated.tenantId,
+        storeId: updated.storeId,
+        storeName: updated.storeName,
+        neighborhood: updated.neighborhood,
+        rate: updated.rate,
+        active: updated.active,
+        notes: updated.notes || undefined,
+        updatedAt: updated.updatedAt,
+      };
+    } else {
+      if (!item.tenantId || !item.storeId || !item.neighborhood || item.rate === undefined) {
+        throw new Error('Preencha os campos obrigatórios para cadastrar tarifa por bairro.');
+      }
+      const newRt = {
         id: item.id,
         tenantId: item.tenantId,
         storeId: item.storeId,
-        storeName: item.storeName,
+        storeName: item.storeName || 'Loja',
         neighborhood: item.neighborhood,
         rate: item.rate,
-        active: item.active,
+        active: item.active ?? true,
         notes: item.notes || null,
         updatedAt: item.updatedAt || new Date().toISOString(),
-      })
-      .onConflictDoUpdate({
-        target: neighborhoodRates.id,
-        set: {
-          storeId: item.storeId,
-          storeName: item.storeName,
-          neighborhood: item.neighborhood,
-          rate: item.rate,
-          active: item.active,
-          notes: item.notes || null,
-          updatedAt: new Date().toISOString(),
-        },
-      });
-    return item;
-  } catch (error) {
+      };
+      await db.insert(neighborhoodRates).values(newRt);
+      return {
+        id: newRt.id,
+        tenantId: newRt.tenantId,
+        storeId: newRt.storeId,
+        storeName: newRt.storeName,
+        neighborhood: newRt.neighborhood,
+        rate: newRt.rate,
+        active: newRt.active,
+        notes: newRt.notes || undefined,
+        updatedAt: newRt.updatedAt,
+      };
+    }
+  } catch (error: any) {
     console.error('upsertRate failed:', error);
-    throw new Error('Falha ao salvar taxa.', { cause: error });
+    throw new Error(error.message || 'Falha ao salvar taxa.', { cause: error });
   }
 }
 
@@ -494,19 +573,83 @@ export async function getOrdersByTenant(tenantId: string): Promise<DeliveryOrder
   }
 }
 
-export async function upsertOrder(order: DeliveryOrder): Promise<DeliveryOrder> {
+export async function upsertOrder(order: Partial<DeliveryOrder> & { id: string }): Promise<DeliveryOrder> {
   try {
-    await db
-      .insert(deliveryOrders)
-      .values({
+    const existing = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, order.id)).limit(1);
+    if (existing.length > 0) {
+      const cur = existing[0];
+      const updated = {
+        orderNumber: order.orderNumber !== undefined ? order.orderNumber : cur.orderNumber,
+        dispatchTime: order.dispatchTime !== undefined ? order.dispatchTime : cur.dispatchTime,
+        operationalDate: order.operationalDate !== undefined ? order.operationalDate : cur.operationalDate,
+        shiftName: order.shiftName !== undefined ? order.shiftName : cur.shiftName,
+        storeId: order.storeId !== undefined ? order.storeId : cur.storeId,
+        storeName: order.storeName !== undefined ? order.storeName : cur.storeName,
+        clientName: order.clientName !== undefined ? order.clientName : cur.clientName,
+        clientPhone: order.clientPhone !== undefined ? (order.clientPhone || null) : cur.clientPhone,
+        address: order.address !== undefined ? order.address : cur.address,
+        neighborhood: order.neighborhood !== undefined ? order.neighborhood : cur.neighborhood,
+        addressRef: order.addressRef !== undefined ? (order.addressRef || null) : cur.addressRef,
+        rate: order.rate !== undefined ? order.rate : cur.rate,
+        originalRate: order.originalRate !== undefined ? (order.originalRate || null) : cur.originalRate,
+        manualRateAdjusted: order.manualRateAdjusted !== undefined ? order.manualRateAdjusted : cur.manualRateAdjusted,
+        adjustmentReason: order.adjustmentReason !== undefined ? (order.adjustmentReason || null) : cur.adjustmentReason,
+        rateHistory: order.rateHistory !== undefined ? (order.rateHistory || null) : cur.rateHistory,
+        motoboyId: order.motoboyId !== undefined ? order.motoboyId : cur.motoboyId,
+        motoboyName: order.motoboyName !== undefined ? order.motoboyName : cur.motoboyName,
+        status: order.status !== undefined ? order.status : cur.status,
+        completionTime: order.completionTime !== undefined ? (order.completionTime || null) : cur.completionTime,
+        completedBy: order.completedBy !== undefined ? (order.completedBy || null) : cur.completedBy,
+        completedByName: order.completedByName !== undefined ? (order.completedByName || null) : cur.completedByName,
+        cancellationReason: order.cancellationReason !== undefined ? (order.cancellationReason || null) : cur.cancellationReason,
+        cancellationTime: order.cancellationTime !== undefined ? (order.cancellationTime || null) : cur.cancellationTime,
+        canceledBy: order.canceledBy !== undefined ? (order.canceledBy || null) : cur.canceledBy,
+        canceledByName: order.canceledByName !== undefined ? (order.canceledByName || null) : cur.canceledByName,
+        clientNotFoundNotes: order.clientNotFoundNotes !== undefined ? (order.clientNotFoundNotes || null) : cur.clientNotFoundNotes,
+        clientNotFoundTime: order.clientNotFoundTime !== undefined ? (order.clientNotFoundTime || null) : cur.clientNotFoundTime,
+        clientNotFoundBy: order.clientNotFoundBy !== undefined ? (order.clientNotFoundBy || null) : cur.clientNotFoundBy,
+        notes: order.notes !== undefined ? (order.notes || null) : cur.notes,
+        shiftClosingId: order.shiftClosingId !== undefined ? (order.shiftClosingId || null) : cur.shiftClosingId,
+        updatedAt: order.updatedAt || new Date().toISOString(),
+      };
+      await db.update(deliveryOrders).set(updated).where(eq(deliveryOrders.id, order.id));
+      return {
+        id: order.id,
+        tenantId: cur.tenantId,
+        ...updated,
+        clientPhone: updated.clientPhone || undefined,
+        addressRef: updated.addressRef || undefined,
+        originalRate: updated.originalRate || undefined,
+        adjustmentReason: updated.adjustmentReason || undefined,
+        rateHistory: updated.rateHistory || undefined,
+        completionTime: updated.completionTime || undefined,
+        completedBy: updated.completedBy || undefined,
+        completedByName: updated.completedByName || undefined,
+        cancellationReason: updated.cancellationReason || undefined,
+        cancellationTime: updated.cancellationTime || undefined,
+        canceledBy: updated.canceledBy || undefined,
+        canceledByName: updated.canceledByName || undefined,
+        clientNotFoundNotes: updated.clientNotFoundNotes || undefined,
+        clientNotFoundTime: updated.clientNotFoundTime || undefined,
+        clientNotFoundBy: updated.clientNotFoundBy || undefined,
+        notes: updated.notes || undefined,
+        shiftClosingId: updated.shiftClosingId || undefined,
+        status: updated.status as any,
+        createdAt: cur.createdAt,
+      };
+    } else {
+      if (!order.tenantId || !order.orderNumber || !order.storeId || !order.clientName || !order.address || !order.neighborhood || order.rate === undefined || !order.motoboyId) {
+        throw new Error('Preencha os campos obrigatórios para cadastrar a entrega.');
+      }
+      const newOrder = {
         id: order.id,
         tenantId: order.tenantId,
         orderNumber: order.orderNumber,
-        dispatchTime: order.dispatchTime,
-        operationalDate: order.operationalDate,
-        shiftName: order.shiftName,
+        dispatchTime: order.dispatchTime || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        operationalDate: order.operationalDate || new Date().toISOString().split('T')[0],
+        shiftName: order.shiftName || 'Geral',
         storeId: order.storeId,
-        storeName: order.storeName,
+        storeName: order.storeName || 'Loja',
         clientName: order.clientName,
         clientPhone: order.clientPhone || null,
         address: order.address,
@@ -518,8 +661,8 @@ export async function upsertOrder(order: DeliveryOrder): Promise<DeliveryOrder> 
         adjustmentReason: order.adjustmentReason || null,
         rateHistory: order.rateHistory || null,
         motoboyId: order.motoboyId,
-        motoboyName: order.motoboyName,
-        status: order.status,
+        motoboyName: order.motoboyName || 'Motoboy',
+        status: order.status || 'pending',
         completionTime: order.completionTime || null,
         completedBy: order.completedBy || null,
         completedByName: order.completedByName || null,
@@ -534,48 +677,33 @@ export async function upsertOrder(order: DeliveryOrder): Promise<DeliveryOrder> 
         shiftClosingId: order.shiftClosingId || null,
         createdAt: order.createdAt || new Date().toISOString(),
         updatedAt: order.updatedAt || new Date().toISOString(),
-      })
-      .onConflictDoUpdate({
-        target: deliveryOrders.id,
-        set: {
-          orderNumber: order.orderNumber,
-          dispatchTime: order.dispatchTime,
-          operationalDate: order.operationalDate,
-          shiftName: order.shiftName,
-          storeId: order.storeId,
-          storeName: order.storeName,
-          clientName: order.clientName,
-          clientPhone: order.clientPhone || null,
-          address: order.address,
-          neighborhood: order.neighborhood,
-          addressRef: order.addressRef || null,
-          rate: order.rate,
-          originalRate: order.originalRate || null,
-          manualRateAdjusted: order.manualRateAdjusted || false,
-          adjustmentReason: order.adjustmentReason || null,
-          rateHistory: order.rateHistory || null,
-          motoboyId: order.motoboyId,
-          motoboyName: order.motoboyName,
-          status: order.status,
-          completionTime: order.completionTime || null,
-          completedBy: order.completedBy || null,
-          completedByName: order.completedByName || null,
-          cancellationReason: order.cancellationReason || null,
-          cancellationTime: order.cancellationTime || null,
-          canceledBy: order.canceledBy || null,
-          canceledByName: order.canceledByName || null,
-          clientNotFoundNotes: order.clientNotFoundNotes || null,
-          clientNotFoundTime: order.clientNotFoundTime || null,
-          clientNotFoundBy: order.clientNotFoundBy || null,
-          notes: order.notes || null,
-          shiftClosingId: order.shiftClosingId || null,
-          updatedAt: new Date().toISOString(),
-        },
-      });
-    return order;
-  } catch (error) {
+      };
+      await db.insert(deliveryOrders).values(newOrder);
+      return {
+        ...newOrder,
+        clientPhone: newOrder.clientPhone || undefined,
+        addressRef: newOrder.addressRef || undefined,
+        originalRate: newOrder.originalRate || undefined,
+        adjustmentReason: newOrder.adjustmentReason || undefined,
+        rateHistory: newOrder.rateHistory || undefined,
+        completionTime: newOrder.completionTime || undefined,
+        completedBy: newOrder.completedBy || undefined,
+        completedByName: newOrder.completedByName || undefined,
+        cancellationReason: newOrder.cancellationReason || undefined,
+        cancellationTime: newOrder.cancellationTime || undefined,
+        canceledBy: newOrder.canceledBy || undefined,
+        canceledByName: newOrder.canceledByName || undefined,
+        clientNotFoundNotes: newOrder.clientNotFoundNotes || undefined,
+        clientNotFoundTime: newOrder.clientNotFoundTime || undefined,
+        clientNotFoundBy: newOrder.clientNotFoundBy || undefined,
+        notes: newOrder.notes || undefined,
+        shiftClosingId: newOrder.shiftClosingId || undefined,
+        status: newOrder.status as any,
+      };
+    }
+  } catch (error: any) {
     console.error('upsertOrder failed:', error);
-    throw new Error('Falha ao salvar pedido.', { cause: error });
+    throw new Error(error.message || 'Falha ao salvar pedido/corrida.', { cause: error });
   }
 }
 

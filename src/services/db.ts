@@ -222,15 +222,20 @@ export function listenMotoboys(tenantId: string, callback: (motoboys: Motoboy[])
 
 export async function createMotoboy(motoboy: Motoboy): Promise<void> {
   const current = hub.motoboys.get(motoboy.tenantId) || [];
-  if (current.some((m) => m.cpf === motoboy.cpf)) {
+  const cleanCpf = motoboy.cpf.replace(/\D/g, '');
+  if (current.some((m) => m.cpf.replace(/\D/g, '') === cleanCpf)) {
     throw new Error('Já existe um motoboy cadastrado com este CPF nesta empresa.');
   }
 
-  await fetch('/api/motoboys', {
+  const res = await fetch('/api/motoboys', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(motoboy),
   });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ error: 'Erro ao salvar motoboy' }));
+    throw new Error(errData.error || 'Erro ao salvar motoboy');
+  }
   await refreshMotoboys(motoboy.tenantId);
 }
 
@@ -248,13 +253,18 @@ export async function updateMotoboy(id: string, data: Partial<Motoboy>): Promise
 
   const existing = hub.motoboys.get(tenantId || '')?.find((m) => m.id === id);
   const updated = { ...(existing || {}), ...data, id } as Motoboy;
+  if (tenantId && !updated.tenantId) updated.tenantId = tenantId;
 
-  await fetch('/api/motoboys', {
+  const res = await fetch('/api/motoboys', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updated),
   });
-  if (tenantId) await refreshMotoboys(tenantId);
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ error: 'Erro ao atualizar motoboy' }));
+    throw new Error(errData.error || 'Erro ao atualizar motoboy');
+  }
+  if (updated.tenantId) await refreshMotoboys(updated.tenantId);
 }
 
 // ==========================================
@@ -286,12 +296,19 @@ export async function createStore(store: DeliveryStore): Promise<void> {
   if (current.length >= 10) {
     throw new Error('Limite atingido: O plano inicial permite no máximo 10 empresas de entrega/lojas cadastradas.');
   }
+  if (current.some((s) => s.code.toUpperCase() === store.code.toUpperCase())) {
+    throw new Error('Já existe uma empresa cadastrada com este identificador (código).');
+  }
 
-  await fetch('/api/stores', {
+  const res = await fetch('/api/stores', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(store),
   });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ error: 'Erro ao salvar empresa' }));
+    throw new Error(errData.error || 'Erro ao salvar empresa');
+  }
   await refreshStores(store.tenantId);
 }
 
@@ -309,13 +326,18 @@ export async function updateStore(id: string, data: Partial<DeliveryStore>): Pro
 
   const existing = hub.stores.get(tenantId || '')?.find((s) => s.id === id);
   const updated = { ...(existing || {}), ...data, id } as DeliveryStore;
+  if (tenantId && !updated.tenantId) updated.tenantId = tenantId;
 
-  await fetch('/api/stores', {
+  const res = await fetch('/api/stores', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updated),
   });
-  if (tenantId) await refreshStores(tenantId);
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ error: 'Erro ao atualizar empresa' }));
+    throw new Error(errData.error || 'Erro ao atualizar empresa');
+  }
+  if (updated.tenantId) await refreshStores(updated.tenantId);
 }
 
 // ==========================================
@@ -343,11 +365,15 @@ export function listenRates(tenantId: string, callback: (rates: NeighborhoodRate
 }
 
 export async function createRate(rate: NeighborhoodRate): Promise<void> {
-  await fetch('/api/rates', {
+  const res = await fetch('/api/rates', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(rate),
   });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ error: 'Erro ao salvar tarifa' }));
+    throw new Error(errData.error || 'Erro ao salvar tarifa');
+  }
   await refreshRates(rate.tenantId);
 }
 
@@ -365,13 +391,18 @@ export async function updateRate(id: string, data: Partial<NeighborhoodRate>): P
 
   const existing = hub.rates.get(tenantId || '')?.find((r) => r.id === id);
   const updated = { ...(existing || {}), ...data, id } as NeighborhoodRate;
+  if (tenantId && !updated.tenantId) updated.tenantId = tenantId;
 
-  await fetch('/api/rates', {
+  const res = await fetch('/api/rates', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updated),
   });
-  if (tenantId) await refreshRates(tenantId);
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ error: 'Erro ao atualizar tarifa' }));
+    throw new Error(errData.error || 'Erro ao atualizar tarifa');
+  }
+  if (updated.tenantId) await refreshRates(updated.tenantId);
 }
 
 // ==========================================
@@ -417,11 +448,15 @@ export async function checkOrderDuplication(
 }
 
 export async function createOrder(order: DeliveryOrder): Promise<void> {
-  await fetch('/api/orders', {
+  const res = await fetch('/api/orders', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(order),
   });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ error: 'Erro ao despachar corrida' }));
+    throw new Error(errData.error || 'Erro ao despachar corrida');
+  }
 
   // Create real-time notification
   const notifId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
