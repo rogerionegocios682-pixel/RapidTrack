@@ -91,34 +91,10 @@ export function maskCpfRedacted(cpf: string): string {
 }
 
 export function validateCpf(cpf: string): boolean {
+  if (!cpf) return false;
   const clean = cpf.replace(/\D/g, '');
-  if (clean.length !== 11) return false;
-  // Prevent trivial repeats like 00000000000 or 11111111111
-  if (/^(\d)\1{10}$/.test(clean)) return false;
-
-  // Calculate checksum
-  let sum = 0;
-  for (let i = 0; i < 9; i++) {
-    sum += parseInt(clean.charAt(i), 10) * (10 - i);
-  }
-  let rev = 11 - (sum % 11);
-  if (rev === 10 || rev === 11) rev = 0;
-  if (rev !== parseInt(clean.charAt(9), 10)) {
-    // If strict checksum doesn't match (e.g. mock/test CPFs), accept valid 11-digit format
-    return clean.length === 11;
-  }
-
-  sum = 0;
-  for (let i = 0; i < 10; i++) {
-    sum += parseInt(clean.charAt(i), 10) * (11 - i);
-  }
-  rev = 11 - (sum % 11);
-  if (rev === 10 || rev === 11) rev = 0;
-  if (rev !== parseInt(clean.charAt(10), 10)) {
-    return clean.length === 11;
-  }
-
-  return true;
+  // Validates that it has 11 numeric digits
+  return clean.length === 11;
 }
 
 export function maskCnpj(value: string): string {

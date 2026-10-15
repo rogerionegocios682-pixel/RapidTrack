@@ -38,11 +38,24 @@ import type {
 } from './types';
 
 const MainAppContent: React.FC = () => {
-  const { currentUser, userProfile, loading } = useAuth();
+  const { currentUser, userProfile, loading, isAdmin } = useAuth();
 
-  // Navigation state
-  const [activePage, setActivePage] = useState<ActivePage>('dashboard');
+  // Navigation state: Admin gets dashboard, Operador and Consulta get dispatch
+  const [activePage, setActivePage] = useState<ActivePage>(isAdmin ? 'dashboard' : 'dispatch');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Enforce access control: Operador and Consulta cannot access dashboard, relatorios, or usuarios
+  useEffect(() => {
+    if (!loading && userProfile && !isAdmin) {
+      if (
+        activePage === 'dashboard' ||
+        activePage.startsWith('relatorios-') ||
+        activePage === 'usuarios'
+      ) {
+        setActivePage('dispatch');
+      }
+    }
+  }, [isAdmin, loading, userProfile, activePage]);
 
   // Modal open for new dispatch directly from anywhere
   const [isNewDispatchModalOpen, setIsNewDispatchModalOpen] = useState(false);
@@ -215,16 +228,31 @@ const MainAppContent: React.FC = () => {
         {/* Viewport Content */}
         <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
           {activePage === 'dashboard' && (
-            <DashboardView
-              orders={orders}
-              stores={stores}
-              motoboys={motoboys}
-              onNavigate={(page) => setActivePage(page)}
-              onOpenNewDispatch={() => {
-                setActivePage('dispatch');
-                setIsNewDispatchModalOpen(true);
-              }}
-            />
+            isAdmin ? (
+              <DashboardView
+                orders={orders}
+                stores={stores}
+                motoboys={motoboys}
+                onNavigate={(page) => setActivePage(page)}
+                onOpenNewDispatch={() => {
+                  setActivePage('dispatch');
+                  setIsNewDispatchModalOpen(true);
+                }}
+              />
+            ) : (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center text-amber-900 shadow-xs">
+                <h3 className="text-base font-black">Acesso Restrito ao Administrador</h3>
+                <p className="mt-1 text-xs text-amber-700">
+                  Operadores e usuários de Consulta não possuem acesso ao Dashboard executivo.
+                </p>
+                <button
+                  onClick={() => setActivePage('dispatch')}
+                  className="mt-4 rounded-xl bg-orange-500 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-orange-600 transition-all"
+                >
+                  Ir para Despachar Pedidos
+                </button>
+              </div>
+            )
           )}
 
           {activePage === 'dispatch' && (
@@ -242,6 +270,7 @@ const MainAppContent: React.FC = () => {
           {activePage === 'cadastros-motoboys' && (
             <RegistrationsView
               initialTab="motoboys"
+              tenantId={userProfile.tenantId}
               motoboys={motoboys}
               stores={stores}
               rates={rates}
@@ -251,6 +280,7 @@ const MainAppContent: React.FC = () => {
           {activePage === 'cadastros-lojas' && (
             <RegistrationsView
               initialTab="lojas"
+              tenantId={userProfile.tenantId}
               motoboys={motoboys}
               stores={stores}
               rates={rates}
@@ -260,65 +290,102 @@ const MainAppContent: React.FC = () => {
           {activePage === 'cadastros-tarifas' && (
             <RegistrationsView
               initialTab="tarifas"
+              tenantId={userProfile.tenantId}
               motoboys={motoboys}
               stores={stores}
               rates={rates}
             />
           )}
 
-          {activePage === 'relatorios-lojas' && (
-            <ReportsView
-              initialSubTab="lojas"
-              orders={orders}
-              stores={stores}
-              motoboys={motoboys}
-              shiftClosings={shiftClosings}
-            />
-          )}
+          {activePage.startsWith('relatorios-') && (
+            isAdmin ? (
+              <>
+                {activePage === 'relatorios-lojas' && (
+                  <ReportsView
+                    initialSubTab="lojas"
+                    orders={orders}
+                    stores={stores}
+                    motoboys={motoboys}
+                    shiftClosings={shiftClosings}
+                  />
+                )}
 
-          {activePage === 'relatorios-motoboys' && (
-            <ReportsView
-              initialSubTab="motoboys"
-              orders={orders}
-              stores={stores}
-              motoboys={motoboys}
-              shiftClosings={shiftClosings}
-            />
-          )}
+                {activePage === 'relatorios-motoboys' && (
+                  <ReportsView
+                    initialSubTab="motoboys"
+                    orders={orders}
+                    stores={stores}
+                    motoboys={motoboys}
+                    shiftClosings={shiftClosings}
+                  />
+                )}
 
-          {activePage === 'relatorios-mensal' && (
-            <ReportsView
-              initialSubTab="mensal"
-              orders={orders}
-              stores={stores}
-              motoboys={motoboys}
-              shiftClosings={shiftClosings}
-            />
-          )}
+                {activePage === 'relatorios-mensal' && (
+                  <ReportsView
+                    initialSubTab="mensal"
+                    orders={orders}
+                    stores={stores}
+                    motoboys={motoboys}
+                    shiftClosings={shiftClosings}
+                  />
+                )}
 
-          {activePage === 'relatorios-ranking' && (
-            <ReportsView
-              initialSubTab="ranking"
-              orders={orders}
-              stores={stores}
-              motoboys={motoboys}
-              shiftClosings={shiftClosings}
-            />
-          )}
+                {activePage === 'relatorios-ranking' && (
+                  <ReportsView
+                    initialSubTab="ranking"
+                    orders={orders}
+                    stores={stores}
+                    motoboys={motoboys}
+                    shiftClosings={shiftClosings}
+                  />
+                )}
 
-          {activePage === 'relatorios-fechamentos' && (
-            <ReportsView
-              initialSubTab="fechamentos"
-              orders={orders}
-              stores={stores}
-              motoboys={motoboys}
-              shiftClosings={shiftClosings}
-            />
+                {activePage === 'relatorios-fechamentos' && (
+                  <ReportsView
+                    initialSubTab="fechamentos"
+                    orders={orders}
+                    stores={stores}
+                    motoboys={motoboys}
+                    shiftClosings={shiftClosings}
+                  />
+                )}
+              </>
+            ) : (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center text-amber-900 shadow-xs">
+                <h3 className="text-base font-black">Acesso Restrito ao Administrador</h3>
+                <p className="mt-1 text-xs text-amber-700">
+                  Operadores e usuários de Consulta não possuem acesso aos Relatórios e demonstrativos.
+                </p>
+                <button
+                  onClick={() => setActivePage('dispatch')}
+                  className="mt-4 rounded-xl bg-orange-500 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-orange-600 transition-all"
+                >
+                  Ir para Despachar Pedidos
+                </button>
+              </div>
+            )
           )}
 
           {activePage === 'empresa' && <CompanyView />}
 
-          {activePage === 'usuarios' && <UsersView />}
+          {activePage === 'usuarios' && (
+            isAdmin ? (
+              <UsersView />
+            ) : (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center text-amber-900 shadow-xs">
+                <h3 className="text-base font-black">Acesso Restrito ao Administrador</h3>
+                <p className="mt-1 text-xs text-amber-700">
+                  Apenas administradores podem gerenciar usuários e definir permissões de acesso.
+                </p>
+                <button
+                  onClick={() => setActivePage('dispatch')}
+                  className="mt-4 rounded-xl bg-orange-500 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-orange-600 transition-all"
+                >
+                  Ir para Despachar Pedidos
+                </button>
+              </div>
+            )
+          )}
 
           {activePage === 'configuracoes' && <SettingsView />}
         </main>

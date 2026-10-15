@@ -120,6 +120,19 @@ export const UsersView: React.FC = () => {
     }
   };
 
+  if (!isAdmin) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-amber-900 shadow-xs">
+        <ShieldCheck className="mx-auto h-10 w-10 text-amber-600 mb-2" />
+        <h3 className="text-lg font-black">Acesso Restrito ao Administrador</h3>
+        <p className="mt-2 text-xs text-amber-700 max-w-md mx-auto">
+          No controle de usuários, apenas o <strong>Administrador</strong> tem permissão total.
+          Operadores e usuários de Consulta não possuem acesso ao gerenciamento de usuários.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-12">
       {/* Header */}
@@ -130,7 +143,7 @@ export const UsersView: React.FC = () => {
             Controle de Usuários e Permissões (RBAC)
           </h2>
           <p className="text-xs text-slate-500">
-            Gerenciamento de operadores, administradores e controle de acesso baseado em papéis.
+            Apenas Administradores possuem permissão total. Operadores e Consulta não acessam Dashboard, Relatórios e Usuários.
           </p>
         </div>
 
@@ -154,30 +167,36 @@ export const UsersView: React.FC = () => {
 
       {/* Role explanation cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="rounded-xl border border-orange-200 bg-orange-50/40 p-4">
-          <span className="rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-bold text-orange-700">
-            ADMINISTRADOR
+        <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-4">
+          <span className="rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-black text-orange-800 uppercase tracking-wide">
+            ADMINISTRADOR (PERMISSÃO TOTAL)
           </span>
-          <p className="mt-2 text-xs text-slate-700 leading-relaxed">
-            Acesso irrestrito a configurações, cadastro de lojas e motoboys, alteração de tarifas, fechamento/reabertura de turnos e relatórios.
+          <p className="mt-2 text-xs text-slate-700 leading-relaxed font-medium">
+            Permissão irrestrita e total: Acesso exclusivo ao <strong>Dashboard</strong> executivo, <strong>Relatórios</strong> financeiros/operacionais, <strong>Usuários</strong> e Permissões, além de Despacho de Pedidos, Cadastros e Configurações.
           </p>
         </div>
 
-        <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4">
-          <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+          <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-black text-blue-800 uppercase tracking-wide">
             OPERADOR
           </span>
-          <p className="mt-2 text-xs text-slate-700 leading-relaxed">
-            Despacho de corridas, confirmação de entregas, ocorrências, cliente não encontrado e fechamento do turno operacional.
+          <p className="mt-2 text-xs text-slate-700 leading-relaxed font-medium">
+            Acesso operacional para Despacho de Pedidos, confirmação de entregas e Cadastros. 
+            <span className="block mt-1 font-bold text-blue-900">
+              ⛔ Sem acesso ao Dashboard, Relatórios e Usuários.
+            </span>
           </p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
-          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700">
+        <div className="rounded-xl border border-slate-200 bg-slate-100/60 p-4">
+          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-black text-slate-700 uppercase tracking-wide">
             CONSULTA
           </span>
-          <p className="mt-2 text-xs text-slate-700 leading-relaxed">
-            Acesso apenas de leitura ao dashboard e relatórios autorizados, sem permissão para despachar ou alterar cadastros.
+          <p className="mt-2 text-xs text-slate-700 leading-relaxed font-medium">
+            Visualização restrita apenas de Despacho e Cadastros operacionais.
+            <span className="block mt-1 font-bold text-slate-900">
+              ⛔ Sem acesso ao Dashboard, Relatórios e Usuários.
+            </span>
           </p>
         </div>
       </div>
@@ -315,9 +334,9 @@ export const UsersView: React.FC = () => {
                   onChange={(e) => setRole(e.target.value as UserRole)}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-900 focus:border-orange-500 focus:outline-hidden"
                 >
-                  <option value="operator">Operador (Despacho e Conclusão)</option>
-                  <option value="admin">Administrador (Total)</option>
-                  <option value="viewer">Consulta (Somente Leitura)</option>
+                  <option value="operator">Operador (Despacho e Cadastros - Sem Dashboard, Relatórios e Usuários)</option>
+                  <option value="viewer">Consulta (Leitura Operacional - Sem Dashboard, Relatórios e Usuários)</option>
+                  <option value="admin">Administrador (Permissão Total ao Sistema)</option>
                 </select>
               </div>
 

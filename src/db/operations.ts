@@ -305,7 +305,20 @@ export async function upsertMotoboy(item: Partial<Motoboy> & { id: string }): Pr
         notes: item.notes || null,
         createdAt: item.createdAt || new Date().toISOString(),
       };
-      await db.insert(motoboys).values(newMb);
+      await db
+        .insert(motoboys)
+        .values(newMb)
+        .onConflictDoUpdate({
+          target: motoboys.id,
+          set: {
+            name: newMb.name,
+            cpf: newMb.cpf,
+            phone: newMb.phone,
+            active: newMb.active,
+            notes: newMb.notes,
+            tenantId: newMb.tenantId,
+          },
+        });
       return {
         id: newMb.id,
         tenantId: newMb.tenantId,

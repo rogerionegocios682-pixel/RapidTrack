@@ -63,54 +63,85 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const currentYear = now.getFullYear();
   const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
 
-  type PeriodType = 'today' | 'week' | 'month' | 'month_select' | 'custom';
-  const [periodType, setPeriodType] = useState<PeriodType>('month');
-  const [selectedMonth, setSelectedMonth] = useState<string>(`${currentYear}-${currentMonth}`);
+  const todayDate = getTodayOperationalDate();
+
+  // Direct Initial and Final date filters
   const [startDate, setStartDate] = useState<string>(`${currentYear}-${currentMonth}-01`);
-  const [endDate, setEndDate] = useState<string>(getTodayOperationalDate());
+  const [endDate, setEndDate] = useState<string>(todayDate);
+
+  // Quick preset helper
+  const applyPreset = (preset: 'today' | 'week' | 'month' | 'last_month' | 'year' | 'all') => {
+    const today = getTodayOperationalDate();
+    if (preset === 'today') {
+      setStartDate(today);
+      setEndDate(today);
+    } else if (preset === 'week') {
+      const d = new Date();
+      d.setDate(d.getDate() - 7);
+      const start = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      setStartDate(start);
+      setEndDate(today);
+    } else if (preset === 'month') {
+      setStartDate(`${currentYear}-${currentMonth}-01`);
+      setEndDate(today);
+    } else if (preset === 'last_month') {
+      const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const py = prevDate.getFullYear();
+      const pm = String(prevDate.getMonth() + 1).padStart(2, '0');
+      const lastDay = new Date(py, prevDate.getMonth() + 1, 0).getDate();
+      setStartDate(`${py}-${pm}-01`);
+      setEndDate(`${py}-${pm}-${String(lastDay).padStart(2, '0')}`);
+    } else if (preset === 'year') {
+      setStartDate(`${currentYear}-01-01`);
+      setEndDate(today);
+    } else if (preset === 'all') {
+      setStartDate('');
+      setEndDate('');
+    }
+  };
 
   // Entity Filters
   const [selectedMotoboyId, setSelectedMotoboyId] = useState<string>('all');
   const [selectedStoreId, setSelectedStoreId] = useState<string>('all');
 
-  // Compute Active Period Date Bounds
+  // Compute Active Period Date Bounds & Label
   const activeDateRange = useMemo(() => {
-    if (periodType === 'today') {
-      const today = getTodayOperationalDate();
-      return { start: today, end: today, label: `Hoje (${formatDate(today)})` };
+    if (!startDate && !endDate) {
+      return { start: '', end: '', label: 'Todo o Histórico (Sem filtro de data)' };
     }
-    if (periodType === 'week') {
-      const d = new Date();
-      d.setDate(now.getDate() - 7);
-      const start = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const end = getTodayOperationalDate();
-      return { start, end, label: `Últimos 7 dias (${formatDate(start)} a ${formatDate(end)})` };
+    if (startDate && !endDate) {
+      return { start: startDate, end: '9999-12-31', label: `A partir de ${formatDate(startDate)}` };
     }
-    if (periodType === 'month') {
-      const start = `${currentYear}-${currentMonth}-01`;
-      const end = getTodayOperationalDate();
-      return { start, end, label: `Mês Corrente (${currentMonth}/${currentYear})` };
+    if (!startDate && endDate) {
+      return { start: '0000-01-01', end: endDate, label: `Até ${formatDate(endDate)}` };
     }
-    if (periodType === 'month_select') {
-      const [y, m] = selectedMonth.split('-');
-      const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
-      const start = `${y}-${m}-01`;
-      const end = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
-      return { start, end, label: `Mês ${m}/${y} (${formatDate(start)} a ${formatDate(end)})` };
+    if (startDate === endDate) {
+      return { start: startDate, end: endDate, label: `Data única: ${formatDate(startDate)}` };
     }
     return {
       start: startDate,
       end: endDate,
-      label: `Personalizado (${formatDate(startDate)} a ${formatDate(endDate)})`,
+      label: `${formatDate(startDate)} até ${formatDate(endDate)}`,
     };
-  }, [periodType, selectedMonth, startDate, endDate, currentYear, currentMonth]);
+  }, [startDate, endDate]);
 
   // Orders matching active period
   const periodOrders = useMemo(() => {
     return orders.filter((o) => {
-      return o.operationalDate >= activeDateRange.start && o.operationalDate <= activeDateRange.end;
+      if (startDate && o.operationalDate < startDate) return false;
+      if (endDate && o.operationalDate > endDate) return false;
+      return true;
     });
-  }, [orders, activeDateRange]);
+  }, [orders, startDate, endDate]);
+
+  // Shift closings matching active period
+  const filteredShiftClosings = useMemo(() => {
+    return shiftClosings.filter((c) => {
+      if (startDate && c.operationalDate < startDate) return false;
+      if (endDate && c.operationalDate > endDate) return false;
+      return true;
+    });
+  }, [shiftClosings, startDate, endDate]);
 
   // Robust CSV Exporter with BOM for Excel UTF-8 support and Brazilian semicolons
   const exportToCsv = (filename: string, rows: (string | number)[][], headers: string[]) => {
@@ -445,60 +476,119 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
       </div>
 
-      {/* Global Filter Bar for Period */}
-      {subTab !== 'fechamentos' && (
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+      {/* Global Filter Bar for Initial & Final Date */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+        <div className="flex flex-col gap-3.5 lg:flex-row lg:items-center lg:justify-between">
+          {/* Direct Date Pickers: Data Inicial & Data Final */}
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-              <Filter className="h-3.5 w-3.5 text-orange-500" />
-              Período:
-            </span>
+            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-800">
+              <Calendar className="h-4 w-4 text-orange-500" />
+              <span>Filtrar por Período:</span>
+            </div>
 
-            <select
-              value={periodType}
-              onChange={(e) => setPeriodType(e.target.value as PeriodType)}
-              className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-800 focus:border-orange-500 focus:outline-hidden"
-            >
-              <option value="today">Hoje</option>
-              <option value="week">Últimos 7 dias</option>
-              <option value="month">Mês Corrente</option>
-              <option value="month_select">Qualquer Mês do Ano</option>
-              <option value="custom">Período Personalizado</option>
-            </select>
-
-            {periodType === 'month_select' && (
+            {/* Data Inicial */}
+            <div className="flex items-center gap-1.5">
+              <label htmlFor="report-start-date" className="text-xs font-bold text-slate-600">
+                Data Inicial:
+              </label>
               <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-800 focus:border-orange-500 focus:outline-hidden"
+                id="report-start-date"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-1.5 text-xs font-semibold text-slate-800 focus:border-orange-500 focus:bg-white focus:outline-hidden transition-colors shadow-2xs"
               />
-            )}
+            </div>
 
-            {periodType === 'custom' && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-800 focus:border-orange-500 focus:outline-hidden"
-                />
-                <span className="text-xs text-slate-400">até</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-800 focus:border-orange-500 focus:outline-hidden"
-                />
-              </div>
-            )}
+            {/* Data Final */}
+            <div className="flex items-center gap-1.5">
+              <label htmlFor="report-end-date" className="text-xs font-bold text-slate-600">
+                Data Final:
+              </label>
+              <input
+                id="report-end-date"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-1.5 text-xs font-semibold text-slate-800 focus:border-orange-500 focus:bg-white focus:outline-hidden transition-colors shadow-2xs"
+              />
+            </div>
+          </div>
 
-            <span className="ml-auto text-xs font-medium text-slate-500">
-              Intervalo ativo: <strong>{activeDateRange.label}</strong>
+          {/* Quick Preset Shortcuts */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+              Atalhos:
             </span>
+            <button
+              type="button"
+              onClick={() => applyPreset('today')}
+              className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                startDate === todayDate && endDate === todayDate
+                  ? 'bg-orange-500 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Hoje
+            </button>
+            <button
+              type="button"
+              onClick={() => applyPreset('week')}
+              className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-slate-200 transition-all"
+            >
+              7 Dias
+            </button>
+            <button
+              type="button"
+              onClick={() => applyPreset('month')}
+              className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                startDate === `${currentYear}-${currentMonth}-01` && endDate === todayDate
+                  ? 'bg-orange-500 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Este Mês
+            </button>
+            <button
+              type="button"
+              onClick={() => applyPreset('last_month')}
+              className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-slate-200 transition-all"
+            >
+              Mês Anterior
+            </button>
+            <button
+              type="button"
+              onClick={() => applyPreset('year')}
+              className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-slate-200 transition-all"
+            >
+              Ano {currentYear}
+            </button>
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => applyPreset('all')}
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-all"
+              >
+                Limpar
+              </button>
+            )}
           </div>
         </div>
-      )}
+
+        {/* Active Period & Metrics Summary Bar */}
+        <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>
+              Período ativo: <strong className="text-slate-900">{activeDateRange.label}</strong>
+            </span>
+          </div>
+          <span className="font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full">
+            {periodOrders.length} corrida(s) no período
+            {subTab === 'fechamentos' && ` • ${filteredShiftClosings.length} fechamento(s)`}
+          </span>
+        </div>
+      </div>
 
       {/* ======================================================== */}
       {/* SUBTAB 1: RELATÓRIO POR EMPRESA DE ENTREGA */}
@@ -1457,7 +1547,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   'Total_Financeiro_R$',
                   'Observações',
                 ];
-                const rows = shiftClosings.map((c) => [
+                const rows = filteredShiftClosings.map((c) => [
                   c.closingCode,
                   c.shiftName,
                   formatDate(c.operationalDate),
@@ -1471,7 +1561,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   c.totalFinancialAmount.toFixed(2).replace('.', ','),
                   c.notes || '',
                 ]);
-                exportToCsv('Historico_Geral_Fechamentos_Turno', rows, headers);
+                exportToCsv(`Historico_Fechamentos_${activeDateRange.start}_a_${activeDateRange.end}`, rows, headers);
               }}
               className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 transition-colors self-start sm:self-auto"
             >
@@ -1494,8 +1584,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                {shiftClosings.length > 0 ? (
-                  shiftClosings.map((c) => {
+                {filteredShiftClosings.length > 0 ? (
+                  filteredShiftClosings.map((c) => {
                     const relatedOrders = orders.filter((o) => o.shiftClosingId === c.id);
                     return (
                       <tr key={c.id} className="hover:bg-slate-50/70 transition-colors">
@@ -1555,7 +1645,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 ) : (
                   <tr>
                     <td colSpan={7} className="py-12 text-center text-slate-400">
-                      Nenhum fechamento de turno registrado até o momento.
+                      Nenhum fechamento de turno registrado no período selecionado ({activeDateRange.label}).
                     </td>
                   </tr>
                 )}

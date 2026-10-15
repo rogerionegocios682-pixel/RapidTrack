@@ -222,8 +222,8 @@ export function listenMotoboys(tenantId: string, callback: (motoboys: Motoboy[])
 
 export async function createMotoboy(motoboy: Motoboy): Promise<void> {
   const current = hub.motoboys.get(motoboy.tenantId) || [];
-  const cleanCpf = motoboy.cpf.replace(/\D/g, '');
-  if (current.some((m) => m.cpf.replace(/\D/g, '') === cleanCpf)) {
+  const cleanCpf = (motoboy.cpf || '').replace(/\D/g, '');
+  if (cleanCpf && current.some((m) => m && m.cpf && m.cpf.replace(/\D/g, '') === cleanCpf && m.id !== motoboy.id)) {
     throw new Error('Já existe um motoboy cadastrado com este CPF nesta empresa.');
   }
 
@@ -254,6 +254,14 @@ export async function updateMotoboy(id: string, data: Partial<Motoboy>): Promise
   const existing = hub.motoboys.get(tenantId || '')?.find((m) => m.id === id);
   const updated = { ...(existing || {}), ...data, id } as Motoboy;
   if (tenantId && !updated.tenantId) updated.tenantId = tenantId;
+
+  if (data.cpf) {
+    const cleanCpf = data.cpf.replace(/\D/g, '');
+    const current = hub.motoboys.get(updated.tenantId || '') || [];
+    if (cleanCpf && current.some((m) => m && m.id !== id && m.cpf && m.cpf.replace(/\D/g, '') === cleanCpf)) {
+      throw new Error('Já existe outro motoboy cadastrado com este CPF nesta empresa.');
+    }
+  }
 
   const res = await fetch('/api/motoboys', {
     method: 'POST',
@@ -293,9 +301,6 @@ export function listenStores(tenantId: string, callback: (stores: DeliveryStore[
 
 export async function createStore(store: DeliveryStore): Promise<void> {
   const current = hub.stores.get(store.tenantId) || [];
-  if (current.length >= 10) {
-    throw new Error('Limite atingido: O plano inicial permite no máximo 10 empresas de entrega/lojas cadastradas.');
-  }
   if (current.some((s) => s.code.toUpperCase() === store.code.toUpperCase())) {
     throw new Error('Já existe uma empresa cadastrada com este identificador (código).');
   }
@@ -310,6 +315,17 @@ export async function createStore(store: DeliveryStore): Promise<void> {
     throw new Error(errData.error || 'Erro ao salvar empresa');
   }
   await refreshStores(store.tenantId);
+}
+
+export async function deleteMotoboy(id: string, tenantId: string): Promise<void> {
+  const res = await fetch(`/api/motoboys/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ error: 'Erro ao excluir motoboy' }));
+    throw new Error(errData.error || 'Erro ao excluir motoboy');
+  }
+  await refreshMotoboys(tenantId);
 }
 
 export async function updateStore(id: string, data: Partial<DeliveryStore>): Promise<void> {
@@ -338,6 +354,17 @@ export async function updateStore(id: string, data: Partial<DeliveryStore>): Pro
     throw new Error(errData.error || 'Erro ao atualizar empresa');
   }
   if (updated.tenantId) await refreshStores(updated.tenantId);
+}
+
+export async function deleteStore(id: string, tenantId: string): Promise<void> {
+  const res = await fetch(`/api/stores/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ error: 'Erro ao excluir empresa' }));
+    throw new Error(errData.error || 'Erro ao excluir empresa');
+  }
+  await refreshStores(tenantId);
 }
 
 // ==========================================
@@ -403,6 +430,17 @@ export async function updateRate(id: string, data: Partial<NeighborhoodRate>): P
     throw new Error(errData.error || 'Erro ao atualizar tarifa');
   }
   if (updated.tenantId) await refreshRates(updated.tenantId);
+}
+
+export async function deleteRate(id: string, tenantId: string): Promise<void> {
+  const res = await fetch(`/api/rates/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ error: 'Erro ao excluir tarifa' }));
+    throw new Error(errData.error || 'Erro ao excluir tarifa');
+  }
+  await refreshRates(tenantId);
 }
 
 // ==========================================

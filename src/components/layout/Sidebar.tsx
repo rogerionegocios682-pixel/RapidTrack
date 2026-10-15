@@ -104,18 +104,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation list */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin">
-          {/* Dashboard */}
-          <button
-            onClick={() => handleNavClick('dashboard')}
-            className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-semibold transition-all ${
-              activePage === 'dashboard'
-                ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25'
-                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-            }`}
-          >
-            <LayoutDashboard className="h-4 w-4" />
-            <span>Dashboard</span>
-          </button>
+          {/* Dashboard (Apenas Administrador) */}
+          {isAdmin && (
+            <button
+              onClick={() => handleNavClick('dashboard')}
+              className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-semibold transition-all ${
+                activePage === 'dashboard'
+                  ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+              }`}
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              <span>Dashboard</span>
+            </button>
+          )}
 
           {/* Despachar Pedidos (Operational Core) */}
           <button
@@ -199,91 +201,93 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
           </div>
 
-          {/* Relatórios Dropdown */}
-          <div>
-            <button
-              onClick={() => setRelatoriosOpen(!relatoriosOpen)}
-              className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold transition-all ${
-                activePage.startsWith('relatorios-')
-                  ? 'bg-slate-800/90 text-white'
-                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <FileText className="h-4 w-4 text-slate-400" />
-                <span>Relatórios</span>
-              </div>
-              {relatoriosOpen ? (
-                <ChevronDown className="h-4 w-4 text-slate-400" />
-              ) : (
-                <ChevronRight className="h-4 w-4 text-slate-400" />
+          {/* Relatórios Dropdown (Apenas Administrador) */}
+          {isAdmin && (
+            <div>
+              <button
+                onClick={() => setRelatoriosOpen(!relatoriosOpen)}
+                className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold transition-all ${
+                  activePage.startsWith('relatorios-')
+                    ? 'bg-slate-800/90 text-white'
+                    : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <FileText className="h-4 w-4 text-slate-400" />
+                  <span>Relatórios</span>
+                </div>
+                {relatoriosOpen ? (
+                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-slate-400" />
+                )}
+              </button>
+
+              {relatoriosOpen && (
+                <div className="mt-1 ml-4 space-y-1 border-l-2 border-slate-700/60 pl-3">
+                  <button
+                    onClick={() => handleNavClick('relatorios-lojas')}
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
+                      activePage === 'relatorios-lojas'
+                        ? 'bg-orange-500/20 text-orange-300 font-bold'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                    }`}
+                  >
+                    <Store className="h-3.5 w-3.5" />
+                    <span>Por Empresa</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleNavClick('relatorios-motoboys')}
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
+                      activePage === 'relatorios-motoboys'
+                        ? 'bg-orange-500/20 text-orange-300 font-bold'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                    }`}
+                  >
+                    <UserCheck className="h-3.5 w-3.5" />
+                    <span>Por Motoboy</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleNavClick('relatorios-mensal')}
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
+                      activePage === 'relatorios-mensal'
+                        ? 'bg-orange-500/20 text-orange-300 font-bold'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                    }`}
+                  >
+                    <CalendarCheck className="h-3.5 w-3.5" />
+                    <span>Consolidado Mensal</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleNavClick('relatorios-ranking')}
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
+                      activePage === 'relatorios-ranking'
+                        ? 'bg-orange-500/20 text-orange-300 font-bold'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                    }`}
+                  >
+                    <Award className="h-3.5 w-3.5" />
+                    <span>Ranking de Motoboys</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleNavClick('relatorios-fechamentos')}
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
+                      activePage === 'relatorios-fechamentos'
+                        ? 'bg-orange-500/20 text-orange-300 font-bold'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                    }`}
+                  >
+                    <History className="h-3.5 w-3.5" />
+                    <span>Fechamento de Turno</span>
+                  </button>
+                </div>
               )}
-            </button>
-
-            {relatoriosOpen && (
-              <div className="mt-1 ml-4 space-y-1 border-l-2 border-slate-700/60 pl-3">
-                <button
-                  onClick={() => handleNavClick('relatorios-lojas')}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
-                    activePage === 'relatorios-lojas'
-                      ? 'bg-orange-500/20 text-orange-300 font-bold'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                  }`}
-                >
-                  <Store className="h-3.5 w-3.5" />
-                  <span>Por Empresa</span>
-                </button>
-
-                <button
-                  onClick={() => handleNavClick('relatorios-motoboys')}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
-                    activePage === 'relatorios-motoboys'
-                      ? 'bg-orange-500/20 text-orange-300 font-bold'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                  }`}
-                >
-                  <UserCheck className="h-3.5 w-3.5" />
-                  <span>Por Motoboy</span>
-                </button>
-
-                <button
-                  onClick={() => handleNavClick('relatorios-mensal')}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
-                    activePage === 'relatorios-mensal'
-                      ? 'bg-orange-500/20 text-orange-300 font-bold'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                  }`}
-                >
-                  <CalendarCheck className="h-3.5 w-3.5" />
-                  <span>Consolidado Mensal</span>
-                </button>
-
-                <button
-                  onClick={() => handleNavClick('relatorios-ranking')}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
-                    activePage === 'relatorios-ranking'
-                      ? 'bg-orange-500/20 text-orange-300 font-bold'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                  }`}
-                >
-                  <Award className="h-3.5 w-3.5" />
-                  <span>Ranking de Motoboys</span>
-                </button>
-
-                <button
-                  onClick={() => handleNavClick('relatorios-fechamentos')}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
-                    activePage === 'relatorios-fechamentos'
-                      ? 'bg-orange-500/20 text-orange-300 font-bold'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                  }`}
-                >
-                  <History className="h-3.5 w-3.5" />
-                  <span>Fechamento de Turno</span>
-                </button>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Empresa Administradora */}
           <button
@@ -298,18 +302,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span>Empresa Administradora</span>
           </button>
 
-          {/* Usuários e Permissões */}
-          <button
-            onClick={() => handleNavClick('usuarios')}
-            className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-semibold transition-all ${
-              activePage === 'usuarios'
-                ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25'
-                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-            }`}
-          >
-            <Users className="h-4 w-4" />
-            <span>Usuários e Permissões</span>
-          </button>
+          {/* Usuários e Permissões (Apenas Administrador) */}
+          {isAdmin && (
+            <button
+              onClick={() => handleNavClick('usuarios')}
+              className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-semibold transition-all ${
+                activePage === 'usuarios'
+                  ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+              }`}
+            >
+              <Users className="h-4 w-4" />
+              <span>Usuários e Permissões</span>
+            </button>
+          )}
 
           {/* Configurações & Auditoria */}
           <button

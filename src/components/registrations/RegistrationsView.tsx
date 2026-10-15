@@ -13,15 +13,19 @@ import {
   ShieldCheck,
   TrendingUp,
   Check,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
   createMotoboy,
   updateMotoboy,
+  deleteMotoboy,
   createStore,
   updateStore,
+  deleteStore,
   createRate,
   updateRate,
+  deleteRate,
   createAuditLog,
 } from '../../services/db';
 import type { Motoboy, DeliveryStore, NeighborhoodRate } from '../../types';
@@ -37,6 +41,7 @@ import {
 
 interface RegistrationsViewProps {
   initialTab?: 'motoboys' | 'lojas' | 'tarifas';
+  tenantId?: string;
   motoboys: Motoboy[];
   stores: DeliveryStore[];
   rates: NeighborhoodRate[];
@@ -44,6 +49,7 @@ interface RegistrationsViewProps {
 
 export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
   initialTab = 'motoboys',
+  tenantId: propTenantId,
   motoboys,
   stores,
   rates,
@@ -113,6 +119,7 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
 
   // Helper to get active tenantId with multi-level resilient fallback
   const getActiveTenantId = (): string => {
+    if (propTenantId) return propTenantId;
     if (userProfile?.tenantId) return userProfile.tenantId;
     if (tenant?.id) return tenant.id;
     try {
@@ -122,7 +129,9 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
         if (parsed?.tenantId) return parsed.tenantId;
       }
     } catch {}
-    // Fallback to active DB tenant
+    if (localStorage.getItem('delivery_os_master_session') === 'true') {
+      return 'tenant_master_herculano';
+    }
     return 'tenant_usr_179190';
   };
 
@@ -162,8 +171,13 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
       return;
     }
 
+    const cleanCpfDigits = mbCpf.replace(/\D/g, '');
     if (!validateCpf(mbCpf)) {
-      setErrorMsg('CPF informado deve conter 11 dígitos.');
+      setErrorMsg(
+        cleanCpfDigits.length !== 11
+          ? `O CPF informado deve conter 11 dígitos (você informou ${cleanCpfDigits.length}).`
+          : 'CPF inválido. Verifique os dígitos informados.'
+      );
       return;
     }
 
@@ -176,7 +190,7 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
           tenantId: editingMotoboy.tenantId || tenantId,
           name: mbName.trim(),
           phone: mbPhone.trim(),
-          cpf: editingMotoboy.cpf || mbCpf.trim(),
+          cpf: mbCpf.trim() || editingMotoboy.cpf,
           notes: mbNotes.trim(),
           active: mbActive,
         };
@@ -436,6 +450,75 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
     }
   };
 
+  // Delete Motoboy
+  const handleDeleteMotoboy = async (m: Motoboy) => {
+    if (!window.confirm(`Deseja realmente excluir o motoboy "${m.name}"?`)) return;
+    const tenantId = getActiveTenantId();
+    try {
+      await deleteMotoboy(m.id, tenantId);
+      setLocalMotoboys((prev) => prev.filter((item) => item.id !== m.id));
+      createAuditLog({
+        tenantId,
+        action: 'Motoboy excluído',
+        entity: 'motoboy',
+        entityId: m.id,
+        details: `Motoboy ${m.name} excluído por ${userProfile?.name || 'Administrador'}`,
+        userId: userProfile?.uid || 'user',
+        userEmail: userProfile?.email || '',
+      }).catch(console.error);
+      setSuccessToast(`Motoboy "${m.name}" excluído com sucesso.`);
+      setTimeout(() => setSuccessToast(null), 3500);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Erro ao excluir motoboy.');
+    }
+  };
+
+  // Delete Store
+  const handleDeleteStore = async (s: DeliveryStore) => {
+    if (!window.confirm(`Deseja realmente excluir a empresa de entrega "${s.name}"?`)) return;
+    const tenantId = getActiveTenantId();
+    try {
+      await deleteStore(s.id, tenantId);
+      setLocalStores((prev) => prev.filter((item) => item.id !== s.id));
+      createAuditLog({
+        tenantId,
+        action: 'Empresa de entrega excluída',
+        entity: 'store',
+        entityId: s.id,
+        details: `Empresa ${s.name} excluída por ${userProfile?.name || 'Administrador'}`,
+        userId: userProfile?.uid || 'user',
+        userEmail: userProfile?.email || '',
+      }).catch(console.error);
+      setSuccessToast(`Empresa "${s.name}" excluída com sucesso.`);
+      setTimeout(() => setSuccessToast(null), 3500);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Erro ao excluir empresa.');
+    }
+  };
+
+  // Delete Rate
+  const handleDeleteRate = async (r: NeighborhoodRate) => {
+    if (!window.confirm(`Deseja realmente excluir a tarifa do bairro "${r.neighborhood}" (${r.storeName})?`)) return;
+    const tenantId = getActiveTenantId();
+    try {
+      await deleteRate(r.id, tenantId);
+      setLocalRates((prev) => prev.filter((item) => item.id !== r.id));
+      createAuditLog({
+        tenantId,
+        action: 'Tarifa de bairro excluída',
+        entity: 'rate',
+        entityId: r.id,
+        details: `Tarifa para ${r.neighborhood} (${r.storeName}) excluída`,
+        userId: userProfile?.uid || 'user',
+        userEmail: userProfile?.email || '',
+      }).catch(console.error);
+      setSuccessToast(`Tarifa para "${r.neighborhood}" excluída com sucesso.`);
+      setTimeout(() => setSuccessToast(null), 3500);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Erro ao excluir tarifa.');
+    }
+  };
+
   return (
     <div className="space-y-6 pb-12">
       {/* Header and Tab Selector */}
@@ -566,22 +649,31 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
                       </td>
                       <td className="py-3 px-4 text-right">
                         {canManage && (
-                          <button
-                            onClick={() => {
-                              setEditingMotoboy(mb);
-                              setMbName(mb.name);
-                              setMbCpf(mb.cpf);
-                              setMbPhone(mb.phone);
-                              setMbNotes(mb.notes || '');
-                              setMbActive(mb.active);
-                              setErrorMsg(null);
-                              setIsMotoboyModalOpen(true);
-                            }}
-                            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                            title="Editar dados"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => {
+                                setEditingMotoboy(mb);
+                                setMbName(mb.name);
+                                setMbCpf(mb.cpf);
+                                setMbPhone(mb.phone);
+                                setMbNotes(mb.notes || '');
+                                setMbActive(mb.active);
+                                setErrorMsg(null);
+                                setIsMotoboyModalOpen(true);
+                              }}
+                              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+                              title="Editar dados"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMotoboy(mb)}
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                              title="Excluir motoboy"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -605,18 +697,19 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
       {activeTab === 'lojas' && (
         <div className="space-y-4">
           {/* Plan Limit Banner */}
+          {/* Store info banner */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-950">
             <div>
               <p className="font-bold flex items-center gap-2">
                 <Store className="h-4 w-4 text-blue-600" />
-                Limite do Plano Inicial: Até 10 empresas ou lojas de entrega
+                Empresas e Lojas de Entrega Cadastradas
               </p>
               <p className="text-[11px] text-blue-700 mt-0.5">
-                Você possui <strong>{stores.length}</strong> de <strong>10</strong> lojas cadastradas no plano padrão.
+                Gerencie as empresas parceiras e pontos de expedição de pedidos.
               </p>
             </div>
             <div className="mt-2 sm:mt-0 font-bold text-sm bg-white px-3 py-1.5 rounded-lg border border-blue-200 shadow-xs">
-              {stores.length} / 10 Lojas
+              {localStores.length} Empresa(s) Cadastrada(s)
             </div>
           </div>
 
@@ -634,7 +727,6 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
 
             {canManage && (
               <button
-                disabled={localStores.length >= 10}
                 onClick={() => {
                   setEditingStore(null);
                   setStName('');
@@ -646,7 +738,7 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
                   setErrorMsg(null);
                   setIsStoreModalOpen(true);
                 }}
-                className="flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-orange-500/25 hover:bg-orange-600 transition-all disabled:opacity-40"
+                className="flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-orange-500/25 hover:bg-orange-600 transition-all"
               >
                 <Plus className="h-4 w-4" />
                 <span>Cadastrar Empresa de Origem</span>
@@ -692,23 +784,32 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
                       </td>
                       <td className="py-3 px-4 text-right">
                         {canManage && (
-                          <button
-                            onClick={() => {
-                              setEditingStore(st);
-                              setStName(st.name);
-                              setStCode(st.code);
-                              setStCnpj(st.cnpj || '');
-                              setStPhone(st.phone || '');
-                              setStNotes(st.notes || '');
-                              setStActive(st.active);
-                              setErrorMsg(null);
-                              setIsStoreModalOpen(true);
-                            }}
-                            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                            title="Editar dados"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => {
+                                setEditingStore(st);
+                                setStName(st.name);
+                                setStCode(st.code);
+                                setStCnpj(st.cnpj || '');
+                                setStPhone(st.phone || '');
+                                setStNotes(st.notes || '');
+                                setStActive(st.active);
+                                setErrorMsg(null);
+                                setIsStoreModalOpen(true);
+                              }}
+                              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+                              title="Editar dados"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteStore(st)}
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                              title="Excluir empresa"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -815,22 +916,31 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
                       </td>
                       <td className="py-3 px-4 text-right">
                         {canManage && (
-                          <button
-                            onClick={() => {
-                              setEditingRate(r);
-                              setRtStoreId(r.storeId);
-                              setRtNeighborhood(r.neighborhood);
-                              setRtRate(String(r.rate));
-                              setRtNotes(r.notes || '');
-                              setRtActive(r.active);
-                              setErrorMsg(null);
-                              setIsRateModalOpen(true);
-                            }}
-                            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                            title="Editar tarifa"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => {
+                                setEditingRate(r);
+                                setRtStoreId(r.storeId);
+                                setRtNeighborhood(r.neighborhood);
+                                setRtRate(String(r.rate));
+                                setRtNotes(r.notes || '');
+                                setRtActive(r.active);
+                                setErrorMsg(null);
+                                setIsRateModalOpen(true);
+                              }}
+                              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+                              title="Editar tarifa"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRate(r)}
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                              title="Excluir tarifa"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -891,12 +1001,11 @@ export const RegistrationsView: React.FC<RegistrationsViewProps> = ({
                 <input
                   type="text"
                   value={mbCpf}
-                  disabled={Boolean(editingMotoboy)}
                   onChange={(e) => setMbCpf(maskCpf(e.target.value))}
                   placeholder="000.000.000-00"
                   maxLength={14}
                   required
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900 focus:border-orange-500 focus:outline-hidden disabled:bg-slate-100"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900 focus:border-orange-500 focus:outline-hidden"
                 />
               </div>
 
