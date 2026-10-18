@@ -10,6 +10,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
+// API Key configuration (DeepSeek / Gemini / External Services)
+export const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || process.env.API_KEY || 'sk-63abe55ebfa14deeaaf89106c87cb2ae';
+
 app.use(express.json());
 
 // API Routes
@@ -17,7 +20,16 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', database: 'postgresql', cloudSql: true });
 });
 
-// Tenants
+// Tenants (Multi-empresa)
+app.get('/api/tenants', async (req, res) => {
+  try {
+    const list = await ops.getAllTenants();
+    res.json(list);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Error fetching tenants' });
+  }
+});
+
 app.get('/api/tenants/:id', async (req, res) => {
   try {
     const tenant = await ops.getTenantById(req.params.id);
@@ -137,6 +149,20 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (error: any) {
     console.error('Error in /api/auth/login:', error);
     res.status(500).json({ error: error.message || 'Falha na autenticação.' });
+  }
+});
+
+app.get('/api/users', async (req, res) => {
+  try {
+    const tenantId = (req.query.tenantId as string) || '';
+    if (!tenantId) {
+      const list = await ops.getAllUsers();
+      return res.json(list);
+    }
+    const list = await ops.getUsersByTenant(tenantId);
+    res.json(list);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Error fetching users' });
   }
 });
 

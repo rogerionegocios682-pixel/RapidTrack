@@ -135,6 +135,17 @@ export async function createTenant(tenantData: Tenant): Promise<void> {
   }
 }
 
+export async function getAllTenants(): Promise<Tenant[]> {
+  try {
+    const res = await fetch('/api/tenants');
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (error) {
+    console.error('getAllTenants error:', error);
+    return [];
+  }
+}
+
 export async function getCompanySettings(tenantId: string): Promise<CompanySettings | null> {
   try {
     const res = await fetch(`/api/company-settings/${encodeURIComponent(tenantId)}`);
@@ -188,12 +199,23 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
   }
 }
 
+export async function getUsersByTenant(tenantId: string): Promise<UserProfile[]> {
+  try {
+    const res = await fetch(`/api/users?tenantId=${encodeURIComponent(tenantId)}`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (error) {
+    console.error('getUsersByTenant error:', error);
+    return [];
+  }
+}
+
 export function listenTenantUsers(tenantId: string, callback: (users: UserProfile[]) => void) {
-  getUserProfile(tenantId).then((user) => {
-    if (user) callback([user]);
-    else callback([]);
-  });
-  return () => {};
+  getUsersByTenant(tenantId).then(callback);
+  const interval = setInterval(() => {
+    getUsersByTenant(tenantId).then(callback);
+  }, 4000);
+  return () => clearInterval(interval);
 }
 
 // ==========================================

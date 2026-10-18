@@ -38,7 +38,7 @@ import type {
 } from './types';
 
 const MainAppContent: React.FC = () => {
-  const { currentUser, userProfile, loading, isAdmin } = useAuth();
+  const { currentUser, userProfile, loading, isAdmin, activeTenantId } = useAuth();
 
   // Navigation state: Admin gets dashboard, Operador and Consulta get dispatch
   const [activePage, setActivePage] = useState<ActivePage>(isAdmin ? 'dashboard' : 'dispatch');
@@ -60,7 +60,7 @@ const MainAppContent: React.FC = () => {
   // Modal open for new dispatch directly from anywhere
   const [isNewDispatchModalOpen, setIsNewDispatchModalOpen] = useState(false);
 
-  // Real-time Firestore state
+  // Real-time Firestore / Postgres state
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [stores, setStores] = useState<DeliveryStore[]>([]);
   const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
@@ -72,31 +72,31 @@ const MainAppContent: React.FC = () => {
   const initialLoadDone = useRef(false);
   const knownNotificationIds = useRef<Set<string>>(new Set());
 
-  // Attach real-time listeners only when user is authenticated with a tenantId
+  // Attach real-time listeners only when user is authenticated with an active tenant
   useEffect(() => {
-    if (!currentUser || !userProfile?.tenantId) return;
+    if (!currentUser || !activeTenantId) return;
 
-    const unsubOrders = listenOrders(userProfile.tenantId, (loaded) => {
+    const unsubOrders = listenOrders(activeTenantId, (loaded) => {
       setOrders(loaded);
     });
 
-    const unsubStores = listenStores(userProfile.tenantId, (loaded) => {
+    const unsubStores = listenStores(activeTenantId, (loaded) => {
       setStores(loaded);
     });
 
-    const unsubMotoboys = listenMotoboys(userProfile.tenantId, (loaded) => {
+    const unsubMotoboys = listenMotoboys(activeTenantId, (loaded) => {
       setMotoboys(loaded);
     });
 
-    const unsubRates = listenRates(userProfile.tenantId, (loaded) => {
+    const unsubRates = listenRates(activeTenantId, (loaded) => {
       setRates(loaded);
     });
 
-    const unsubClosings = listenShiftClosings(userProfile.tenantId, (loaded) => {
+    const unsubClosings = listenShiftClosings(activeTenantId, (loaded) => {
       setShiftClosings(loaded);
     });
 
-    const unsubNotifications = listenNotifications(userProfile.tenantId, (loaded) => {
+    const unsubNotifications = listenNotifications(activeTenantId, (loaded) => {
       // Check for new incoming notifications to trigger sound & push
       if (initialLoadDone.current) {
         loaded.forEach((notif) => {
@@ -126,13 +126,13 @@ const MainAppContent: React.FC = () => {
       unsubClosings();
       unsubNotifications();
     };
-  }, [currentUser, userProfile?.tenantId]);
+  }, [currentUser, activeTenantId]);
 
   // Periodic check for delayed pending orders (e.g. pending for > 20 minutes)
   const alertedDelays = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!userProfile?.tenantId || orders.length === 0) return;
+    if (!activeTenantId || orders.length === 0) return;
 
     const interval = setInterval(() => {
       const now = Date.now();
@@ -270,7 +270,7 @@ const MainAppContent: React.FC = () => {
           {activePage === 'cadastros-motoboys' && (
             <RegistrationsView
               initialTab="motoboys"
-              tenantId={userProfile.tenantId}
+              tenantId={activeTenantId}
               motoboys={motoboys}
               stores={stores}
               rates={rates}
@@ -280,7 +280,7 @@ const MainAppContent: React.FC = () => {
           {activePage === 'cadastros-lojas' && (
             <RegistrationsView
               initialTab="lojas"
-              tenantId={userProfile.tenantId}
+              tenantId={activeTenantId}
               motoboys={motoboys}
               stores={stores}
               rates={rates}
@@ -290,7 +290,7 @@ const MainAppContent: React.FC = () => {
           {activePage === 'cadastros-tarifas' && (
             <RegistrationsView
               initialTab="tarifas"
-              tenantId={userProfile.tenantId}
+              tenantId={activeTenantId}
               motoboys={motoboys}
               stores={stores}
               rates={rates}

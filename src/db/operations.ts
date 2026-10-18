@@ -82,6 +82,25 @@ export async function upsertTenant(tenantData: Tenant): Promise<Tenant> {
   }
 }
 
+export async function getAllTenants(): Promise<Tenant[]> {
+  try {
+    const res = await db.select().from(tenants);
+    return res.map((t) => ({
+      id: t.id,
+      name: t.name,
+      tradeName: t.tradeName,
+      cnpj: t.cnpj || undefined,
+      email: t.email,
+      phone: t.phone || undefined,
+      maxStores: t.maxStores,
+      createdAt: t.createdAt,
+    }));
+  } catch (error) {
+    console.error('getAllTenants failed:', error);
+    return [];
+  }
+}
+
 // ==========================================
 // USERS
 // ==========================================
@@ -156,6 +175,42 @@ export async function upsertUserProfile(profile: UserProfile & { password?: stri
   } catch (error) {
     console.error('upsertUserProfile failed:', error);
     throw new Error('Falha ao salvar perfil de usuário.', { cause: error });
+  }
+}
+
+export async function getUsersByTenant(tenantId: string): Promise<UserProfile[]> {
+  try {
+    const res = await db.select().from(users).where(eq(users.tenantId, tenantId));
+    return res.map((u) => ({
+      uid: u.uid,
+      tenantId: u.tenantId,
+      email: u.email,
+      name: u.name,
+      role: u.role as any,
+      active: u.active,
+      createdAt: u.createdAt,
+    }));
+  } catch (error) {
+    console.error('getUsersByTenant failed:', error);
+    return [];
+  }
+}
+
+export async function getAllUsers(): Promise<UserProfile[]> {
+  try {
+    const res = await db.select().from(users);
+    return res.map((u) => ({
+      uid: u.uid,
+      tenantId: u.tenantId,
+      email: u.email,
+      name: u.name,
+      role: u.role as any,
+      active: u.active,
+      createdAt: u.createdAt,
+    }));
+  } catch (error) {
+    console.error('getAllUsers failed:', error);
+    return [];
   }
 }
 
@@ -410,7 +465,21 @@ export async function upsertStore(item: Partial<DeliveryStore> & { id: string })
         notes: item.notes || null,
         createdAt: item.createdAt || new Date().toISOString(),
       };
-      await db.insert(deliveryStores).values(newSt);
+      await db
+        .insert(deliveryStores)
+        .values(newSt)
+        .onConflictDoUpdate({
+          target: deliveryStores.id,
+          set: {
+            name: newSt.name,
+            code: newSt.code,
+            cnpj: newSt.cnpj,
+            phone: newSt.phone,
+            active: newSt.active,
+            notes: newSt.notes,
+            tenantId: newSt.tenantId,
+          },
+        });
       return {
         id: newSt.id,
         tenantId: newSt.tenantId,
@@ -504,7 +573,22 @@ export async function upsertRate(item: Partial<NeighborhoodRate> & { id: string 
         notes: item.notes || null,
         updatedAt: item.updatedAt || new Date().toISOString(),
       };
-      await db.insert(neighborhoodRates).values(newRt);
+      await db
+        .insert(neighborhoodRates)
+        .values(newRt)
+        .onConflictDoUpdate({
+          target: neighborhoodRates.id,
+          set: {
+            storeId: newRt.storeId,
+            storeName: newRt.storeName,
+            neighborhood: newRt.neighborhood,
+            rate: newRt.rate,
+            active: newRt.active,
+            notes: newRt.notes,
+            tenantId: newRt.tenantId,
+            updatedAt: newRt.updatedAt,
+          },
+        });
       return {
         id: newRt.id,
         tenantId: newRt.tenantId,

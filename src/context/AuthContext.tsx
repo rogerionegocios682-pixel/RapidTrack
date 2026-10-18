@@ -20,6 +20,7 @@ import {
   saveUserProfile,
   getTenant,
   createTenant,
+  getAllTenants,
   getCompanySettings,
   saveCompanySettings,
   seedDemoDataIfEmpty,
@@ -46,6 +47,10 @@ interface AuthContextType {
   isAdmin: boolean;
   isOperator: boolean;
   isViewer: boolean;
+  availableTenants: Tenant[];
+  activeTenantId: string;
+  switchTenant: (tenantId: string) => Promise<void>;
+  refreshAvailableTenants: () => Promise<void>;
   loginWithEmail: (email: string, pass: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   registerCompany: (data: RegisterCompanyData) => Promise<void>;
@@ -129,8 +134,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
+  const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const isRegisteringRef = useRef<boolean>(false);
+
+  const refreshAvailableTenants = async () => {
+    try {
+      const list = await getAllTenants();
+      if (list && list.length > 0) {
+        setAvailableTenants(list);
+      }
+    } catch (e) {
+      console.error('Error refreshing tenants:', e);
+    }
+  };
+
+  const switchTenant = async (newTenantId: string) => {
+    try {
+      const [t, s] = await Promise.all([
+        getTenant(newTenantId),
+        getCompanySettings(newTenantId),
+      ]);
+      if (t) setTenant(t);
+      if (s) setCompanySettings(s);
+      if (userProfile) {
+        const updated = { ...userProfile, tenantId: newTenantId };
+        setUserProfile(updated);
+        try {
+          localStorage.setItem('delivery_os_active_tenant', newTenantId);
+        } catch {}
+      }
+    } catch (err) {
+      console.error('Error switching tenant:', err);
+    }
+  };
+
+  useEffect(() => {
+    refreshAvailableTenants();
+  }, []);
 
   useEffect(() => {
     // Check if master session was previously saved in storage
@@ -331,61 +372,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await signInWithEmailAndPassword(auth, email, pass);
     } catch (fbErr: any) {
-      if (
-        fbErr.code === 'auth/operation-not-allowed' ||
-        fbErr.code === 'auth/user-not-found' ||
-        fbErr.code === 'auth/invalid-credential'
-      ) {
-        // Fallback to PostgreSQL relational authentication
-        const res = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password: pass }),
-        });
+      // Fallback to PostgreSQL relational authentication for all client administrators & users
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pass }),
+      });
 
-        if (res.ok) {
-          const data = await res.json();
-          const syntheticUser = {
+      if (res.ok) {
+        const data = await res.json();
+        const syntheticUser = {
+          uid: data.user.uid,
+          email: data.user.email,
+          displayName: data.user.name,
+          emailVerified: true,
+          isAnonymous: false,
+          metadata: {} as any,
+          providerData: [],
+          refreshToken: data.token,
+          tenantId: data.user.tenantId,
+          delete: async () => {},
+          getIdToken: async () => data.token,
+          getIdTokenResult: async () => ({} as any),
+          reload: async () => {},
+          toJSON: () => ({}),
+          phoneNumber: null,
+          photoURL: null,
+          providerId: 'password',
+        } as unknown as User;
+
+        localStorage.setItem(
+          'delivery_os_user_session',
+          JSON.stringify({
             uid: data.user.uid,
             email: data.user.email,
-            displayName: data.user.name,
-            emailVerified: true,
-            isAnonymous: false,
-            metadata: {} as any,
-            providerData: [],
-            refreshToken: data.token,
+            name: data.user.name,
             tenantId: data.user.tenantId,
-            delete: async () => {},
-            getIdToken: async () => data.token,
-            getIdTokenResult: async () => ({} as any),
-            reload: async () => {},
-            toJSON: () => ({}),
-            phoneNumber: null,
-            photoURL: null,
-            providerId: 'password',
-          } as unknown as User;
+          })
+        );
 
-          localStorage.setItem(
-            'delivery_os_user_session',
-            JSON.stringify({
-              uid: data.user.uid,
-              email: data.user.email,
-              name: data.user.name,
-              tenantId: data.user.tenantId,
-            })
-          );
-
-          setCurrentUser(syntheticUser);
-          setUserProfile(data.user);
-          setTenant(data.tenant);
-          setCompanySettings(data.settings);
-          return;
-        } else {
-          const errBody = await res.json().catch(() => ({}));
-          throw new Error(errBody.error || 'E-mail ou senha inválidos.');
-        }
+        setCurrentUser(syntheticUser);
+        setUserProfile(data.user);
+        setTenant(data.tenant);
+        setCompanySettings(data.settings);
+        refreshAvailableTenants();
+        return;
+      } else {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || fbErr.message || 'E-mail ou senha inválidos.');
       }
-      throw fbErr;
     }
   };
 
@@ -405,59 +440,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user = userCredential.user;
         tenantId = `tenant_${user.uid.slice(0, 10)}`;
       } catch (fbErr: any) {
-        if (fbErr.code === 'auth/operation-not-allowed') {
-          // Direct backend registration
-          const res = await fetch('/api/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data),
-          });
+        // Direct backend registration in PostgreSQL
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
 
-          if (!res.ok) {
-            const errRes = await res.json().catch(() => ({}));
-            throw new Error(errRes.error || 'Falha ao registrar empresa.');
-          }
+        if (!res.ok) {
+          const errRes = await res.json().catch(() => ({}));
+          throw new Error(errRes.error || fbErr.message || 'Falha ao registrar empresa.');
+        }
 
-          const regData = await res.json();
-          const syntheticUser = {
+        const regData = await res.json();
+        const syntheticUser = {
+          uid: regData.user.uid,
+          email: regData.user.email,
+          displayName: regData.user.name,
+          emailVerified: true,
+          isAnonymous: false,
+          metadata: {} as any,
+          providerData: [],
+          refreshToken: regData.token,
+          tenantId: regData.user.tenantId,
+          delete: async () => {},
+          getIdToken: async () => regData.token,
+          getIdTokenResult: async () => ({} as any),
+          reload: async () => {},
+          toJSON: () => ({}),
+          phoneNumber: null,
+          photoURL: null,
+          providerId: 'password',
+        } as unknown as User;
+
+        localStorage.setItem(
+          'delivery_os_user_session',
+          JSON.stringify({
             uid: regData.user.uid,
             email: regData.user.email,
-            displayName: regData.user.name,
-            emailVerified: true,
-            isAnonymous: false,
-            metadata: {} as any,
-            providerData: [],
-            refreshToken: regData.token,
+            name: regData.user.name,
             tenantId: regData.user.tenantId,
-            delete: async () => {},
-            getIdToken: async () => regData.token,
-            getIdTokenResult: async () => ({} as any),
-            reload: async () => {},
-            toJSON: () => ({}),
-            phoneNumber: null,
-            photoURL: null,
-            providerId: 'password',
-          } as unknown as User;
+          })
+        );
 
-          localStorage.setItem(
-            'delivery_os_user_session',
-            JSON.stringify({
-              uid: regData.user.uid,
-              email: regData.user.email,
-              name: regData.user.name,
-              tenantId: regData.user.tenantId,
-            })
-          );
+        setCurrentUser(syntheticUser);
+        setUserProfile(regData.user);
+        setTenant(regData.tenant);
+        setCompanySettings(regData.settings);
 
-          setCurrentUser(syntheticUser);
-          setUserProfile(regData.user);
-          setTenant(regData.tenant);
-          setCompanySettings(regData.settings);
-
-          await seedDemoDataIfEmpty(regData.user.tenantId, data.tradeName);
-          return;
-        }
-        throw fbErr;
+        await seedDemoDataIfEmpty(regData.user.tenantId, data.tradeName);
+        await refreshAvailableTenants();
+        return;
       }
 
       const newTenant: Tenant = {
@@ -589,6 +622,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAdmin,
         isOperator,
         isViewer,
+        availableTenants,
+        activeTenantId: userProfile?.tenantId || tenant?.id || 'tenant_usr_179190',
+        switchTenant,
+        refreshAvailableTenants,
         loginWithEmail,
         loginWithGoogle,
         registerCompany,
