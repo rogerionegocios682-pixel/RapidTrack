@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "outDir": ".tmp-build",
+    "module": "commonjs",
+    "target": "es2020",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    }
+  },
+  "include": [
+    "src/db/index.ts",
+    "src/lib/**/*.ts",
+    "src/types/sql-js.d.ts"
+  ]
+}

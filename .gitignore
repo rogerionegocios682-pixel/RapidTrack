@@ -1,0 +1,30 @@
+# Dependências
+node_modules/
+
+# Build do Next.js
+.next/
+.next-installer/
+out/
+build/
+dist/
+
+# Banco de dados local (gerado em runtime, nunca versionar)
+data/
+*.db
+*.db.tmp
+
+# Cache local do npm (scripts/fix-env.js)
+.npm-cache/
+
+# Logs e artefatos de diagnóstico
+*.log
+*.tsbuildinfo
+
+# Variáveis de ambiente
+.env
+.env.local
+.env*.local
+
+# Sistema operacional / editor
+.DS_Store
+Thumbs.db

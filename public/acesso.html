@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+ <meta charset="UTF-8" />
+ <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+ <title>Acesso — Delivery_OS</title>
+ <style>
+    :root {
+      --bg: #0b1120;
+      --card: #131c31;
+      --card-hover: #1b2742;
+      --border: #24324f;
+      --text: #e8edf7;
+      --muted: #8b9ab5;
+      --brand: #4f7cff;
+      --brand-soft: #4f7cff1a;
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --err: #fb7185;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: radial-gradient(circle at 20% 0%, #16233d 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+    .wrap { width: 100%; max-width: 880px; }
+    header { margin-bottom: 28px; }
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--brand);
+      margin-bottom: 14px;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--brand); box-shadow: 0 0 12px var(--brand);
+    }
+    h1 { font-size: 30px; font-weight: 700; letter-spacing: -.02em; }
+    .sub { color: var(--muted); margin-top: 8px; font-size: 15px; line-height: 1.5; }
+    .status {
+      display: flex; align-items: center; gap: 10px;
+      margin-top: 18px; padding: 12px 16px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; font-size: 14px;
+    }
+    .status .pill {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 4px 11px; border-radius: 999px;
+      font-size: 12px; font-weight: 600;
+      background: var(--brand-soft); color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .status .pill.on { color: var(--ok); border-color: #34d39940; background: #34d3991a; }
+    .status .pill.off { color: var(--err); border-color: #fb718540; background: #fb71851a; }
+    .status .pill.wait { color: var(--warn); border-color: #fbbf2440; background: #fbbf241a; }
+    .beacon {
+      width: 7px; height: 7px; border-radius: 50%; background: currentColor;
+    }
+    .grid {
+      display: grid; gap: 12px; margin-top: 22px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+    a.card {
+      display: block; text-decoration: none; color: inherit;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 18px;
+      transition: background .15s, border-color .15s, transform .15s;
+    }
+    a.card:hover {
+      background: var(--card-hover);
+      border-color: #35507f;
+      transform: translateY(-2px);
+    }
+    .card .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .card h2 { font-size: 16px; font-weight: 600; }
+    .card .arrow { color: var(--muted); font-size: 18px; transition: transform .15s, color .15s; }
+    a.card:hover .arrow { color: var(--brand); transform: translateX(3px); }
+    .card p { color: var(--muted); font-size: 13px; margin-top: 7px; line-height: 1.5; }
+    .card .path {
+      display: inline-block; margin-top: 12px;
+      font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+      font-size: 12px; color: var(--brand);
+      background: var(--brand-soft); padding: 3px 9px; border-radius: 6px;
+    }
+    footer {
+      margin-top: 28px; padding-top: 20px;
+      border-top: 1px solid var(--border);
+      color: var(--muted); font-size: 12.5px; line-height: 1.7;
+    }
+    code {
+      font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+      background: #ffffff0d; padding: 2px 6px; border-radius: 5px; font-size: 12px;
+    }
+    .warnbox {
+      margin-top: 16px; padding: 13px 16px;
+      background: #fbbf241a; border: 1px solid #fbbf2440;
+      border-radius: 10px; font-size: 13px; color: #fde68a; line-height: 1.6;
+    }
+ </style>
+</head>
+<body>
+ <div class="wrap">
+    <header>
+      <div class="logo"><span class="dot"></span> Delivery_OS</div>
+      <h1>Acesso ao sistema</h1>
+      <p class="sub">
+        Painel de entrada do sistema de gestão de entregas e motoboys.
+        Escolha uma das telas abaixo para começar.
+      </p>
+
+      <div class="status">
+        <span class="pill wait" id="pill"><span class="beacon"></span><span id="pillText">verificando servidor…</span></span>
+        <span id="statusDetail" style="color:var(--muted)">Verificando <code>http://localhost:3000</code></span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <a class="card" href="http://localhost:3000/login">
+        <div class="top">
+          <h2>Entrar</h2><span class="arrow">→</span>
+        </div>
+        <p>Acesse com seu e-mail e senha. É por aqui que você entra no painel.</p>
+        <span class="path">/login</span>
+      </a>
+
+      <a class="card" href="http://localhost:3000/cadastro">
+        <div class="top">
+          <h2>Criar conta</h2><span class="arrow">→</span>
+        </div>
+        <p>Auto-cadastro. O primeiro usuário do sistema vira Administrador.</p>
+        <span class="path">/cadastro</span>
+      </a>
+
+      <a class="card" href="http://localhost:3000/esqueci-senha">
+        <div class="top">
+          <h2>Esqueci a senha</h2><span class="arrow">→</span>
+        </div>
+        <p>Solicita um link de recuperação para redefinir a senha.</p>
+        <span class="path">/esqueci-senha</span>
+      </a>
+
+      <a class="card" href="http://localhost:3000/redefinir-senha">
+        <div class="top">
+          <h2>Redefinir senha</h2><span class="arrow">→</span>
+        </div>
+        <p>Troca a senha usando o token recebido por e-mail.</p>
+        <span class="path">/redefinir-senha</span>
+      </a>
+
+      <a class="card" href="http://localhost:3000/dashboard">
+        <div class="top">
+          <h2>Painel</h2><span class="arrow">→</span>
+        </div>
+        <p>Dashboard com corridas, motoboys, empresas e taxas. Exige login.</p>
+        <span class="path">/dashboard</span>
+      </a>
+    </div>
+
+    <div class="warnbox">
+      <strong>Servidor desligado?</strong> Se os links não abrirem, inicie o sistema no
+      terminal, dentro da pasta do projeto, com <code>npm run dev</code>
+      (ou <code>node node_modules/next/dist/bin/next dev</code>) e recarregue esta página.
+    </div>
+
+    <footer>
+      <strong>Usuário administrador já cadastrado:</strong> <code>admin@deliveryos.com</code><br />
+      A senha está guardada apenas como hash (scrypt) e não pode ser recuperada.
+      Se você não lembra, use <em>Esqueci a senha</em> — o link aparece no terminal
+      onde o servidor está rodando.
+    </footer>
+ </div>
+
+ <script>
+    (function () {
+      var pill = document.getElementById('pill');
+      var pillText = document.getElementById('pillText');
+      var detail = document.getElementById('statusDetail');
+
+      function set(state, text, detailHtml) {
+        pill.className = 'pill ' + state;
+        pillText.textContent = text;
+        if (detailHtml) detail.innerHTML = detailHtml;
+      }
+
+      // O App Router responde 307 em "/" quando não há sessão — isso já prova
+      // que o servidor está vivo, então tratamos como sucesso.
+      fetch('http://localhost:3000/login', { method: 'GET', mode: 'no-cors' })
+        .then(function () {
+          set('on', 'servidor ativo', 'Rodando em <code>http://localhost:3000</code> — pode entrar.');
+        })
+        .catch(function () {
+          set('off', 'servidor parado', 'Nada respondendo em <code>http://localhost:3000</code>. Inicie com <code>npm run dev</code>.');
+        });
+    })();
+ </script>
+</body>
+</html>

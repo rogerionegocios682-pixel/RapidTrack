@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Iniciar Delivery_OS</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --card: #131c31;
+      --border: #24324f;
+      --text: #e8edf7;
+      --muted: #8b9ab5;
+      --brand: #4f7cff;
+      --ok: #34d399;
+      --err: #fb7185;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: radial-gradient(circle at 30% 0%, #16233d 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+
+    .wrap {
+      max-width: 620px;
+      width: 100%;
+    }
+
+    h1 {
+      font-size: 26px;
+      letter-spacing: -.02em;
+      margin-bottom: 10px;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    .box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 14px;
+    }
+
+    .box h2 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--brand);
+      margin-bottom: 14px;
+    }
+
+    pre {
+      background: #0a0f1c;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+      font-size: 13px;
+      color: #bfdbfe;
+      line-height: 1.6;
+    }
+
+    button {
+      margin-top: 12px;
+      width: 100%;
+      padding: 11px 16px;
+      background: var(--brand);
+      color: #fff;
+      border: 0;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+
+    button:hover {
+      opacity: .88;
+    }
+
+    .ok {
+      color: var(--ok);
+    }
+
+    .err {
+      color: var(--err);
+    }
+
+    #result {
+      margin-top: 12px;
+      font-size: 13.5px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <h1>Delivery_OS</h1>
+    <p class="sub">
+      Abra o terminal na pasta do projeto e rode o comando abaixo.
+      Depois clique em <strong>Abrir o sistema</strong>.
+    </p>
+
+    <div class="box">
+      <h2>1. Subir o servidor</h2>
+      <pre>npm run dev</pre>
+      <p class="sub" style="font-size:13px;margin:10px 0 0">
+        Se o <code>npm</code> falhar, use:
+      </p>
+      <pre style="margin-top:8px">&amp; 'C:\Program Files\nodejs\node.exe' node_modules\next\dist\bin\next dev</pre>
+      <button id="check">Verificar se o servidor está no ar</button>
+      <div id="result">Aguardando verificação…</div>
+    </div>
+
+    <div class="box">
+      <h2>2. Abrir</h2>
+      <pre>http://localhost:3000/login</pre>
+      <button onclick="window.open('http://localhost:3000/login','_blank')">Abrir o sistema</button>
+    </div>
+
+    <div class="box">
+      <h2>Painel de rotas</h2>
+      <p class="sub" style="font-size:13.5px;margin:0">
+        Para ver todas as telas disponíveis, abra
+        <strong>public/acesso.html</strong> no navegador.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    var out = document.getElementById('result');
+    document.getElementById('check').addEventListener('click', function () {
+      out.textContent = 'Verificando…';
+      out.className = '';
+      fetch('http://localhost:3000/login', { mode: 'no-cors' })
+        .then(function () {
+          out.textContent = 'Servidor ativo em http://localhost:3000 — pode abrir o sistema.';
+          out.className = 'ok';
+        })
+        .catch(function () {
+          out.textContent = 'Nada respondendo em http://localhost:3000. Rode "npm run dev" no terminal.';
+          out.className = 'err';
+        });
+    });
+  </script>
+</body>
+
+</html>
