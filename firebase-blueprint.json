@@ -1,0 +1,250 @@
+{
+  "entities": {
+    "Tenant": {
+      "title": "Tenant",
+      "description": "SaaS Subscriber Company Account",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "tradeName": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "maxStores": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "email"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with role-based access",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "operator", "viewer"] },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "tenantId", "email", "role"]
+    },
+    "CompanySettings": {
+      "title": "CompanySettings",
+      "description": "Logistics Administrator Company Info",
+      "type": "object",
+      "properties": {
+        "tenantId": { "type": "string" },
+        "legalName": { "type": "string" },
+        "tradeName": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "cep": { "type": "string" },
+        "address": { "type": "string" },
+        "number": { "type": "string" },
+        "complement": { "type": "string" },
+        "neighborhood": { "type": "string" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "timezone": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["tenantId", "tradeName"]
+    },
+    "Motoboy": {
+      "title": "Motoboy",
+      "description": "Delivery courier registered for operation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "name": { "type": "string" },
+        "cpf": { "type": "string" },
+        "phone": { "type": "string" },
+        "active": { "type": "boolean" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "tenantId", "name", "cpf", "phone", "active"]
+    },
+    "DeliveryStore": {
+      "title": "DeliveryStore",
+      "description": "Origin store or client shop (e.g., iFood Loja A)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "phone": { "type": "string" },
+        "active": { "type": "boolean" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "tenantId", "name", "active"]
+    },
+    "NeighborhoodRate": {
+      "title": "NeighborhoodRate",
+      "description": "Pricing table for a specific store and neighborhood",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "storeId": { "type": "string" },
+        "storeName": { "type": "string" },
+        "neighborhood": { "type": "string" },
+        "rate": { "type": "number" },
+        "active": { "type": "boolean" },
+        "notes": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "tenantId", "storeId", "neighborhood", "rate", "active"]
+    },
+    "DeliveryOrder": {
+      "title": "DeliveryOrder",
+      "description": "Dispatched delivery corrida record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "dispatchTime": { "type": "string" },
+        "operationalDate": { "type": "string" },
+        "shiftName": { "type": "string" },
+        "storeId": { "type": "string" },
+        "storeName": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientPhone": { "type": "string" },
+        "address": { "type": "string" },
+        "neighborhood": { "type": "string" },
+        "addressRef": { "type": "string" },
+        "rate": { "type": "number" },
+        "originalRate": { "type": "number" },
+        "manualRateAdjusted": { "type": "boolean" },
+        "adjustmentReason": { "type": "string" },
+        "motoboyId": { "type": "string" },
+        "motoboyName": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed", "canceled", "client_not_found"] },
+        "completionTime": { "type": "string" },
+        "completedBy": { "type": "string" },
+        "cancellationReason": { "type": "string" },
+        "cancellationTime": { "type": "string" },
+        "canceledBy": { "type": "string" },
+        "clientNotFoundNotes": { "type": "string" },
+        "clientNotFoundTime": { "type": "string" },
+        "notes": { "type": "string" },
+        "shiftClosingId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "tenantId", "orderNumber", "storeId", "clientName", "address", "neighborhood", "rate", "motoboyId", "status"]
+    },
+    "ShiftClosing": {
+      "title": "ShiftClosing",
+      "description": "Turno closing summary record with audit snapshot",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "closingCode": { "type": "string" },
+        "shiftName": { "type": "string" },
+        "operationalDate": { "type": "string" },
+        "closedAt": { "type": "string" },
+        "closedBy": { "type": "string" },
+        "closedByName": { "type": "string" },
+        "totalOrders": { "type": "number" },
+        "completedOrders": { "type": "number" },
+        "canceledOrders": { "type": "number" },
+        "clientNotFoundOrders": { "type": "number" },
+        "pendingOrdersResolved": { "type": "number" },
+        "totalFinancialAmount": { "type": "number" },
+        "motoboysSummary": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "tenantId", "closingCode", "shiftName", "operationalDate", "closedAt", "closedBy"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System action audit log entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "action": { "type": "string" },
+        "entity": { "type": "string" },
+        "entityId": { "type": "string" },
+        "details": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "tenantId", "action", "userId", "timestamp"]
+    },
+    "AppNotification": {
+      "title": "AppNotification",
+      "description": "Real-time push and in-app notification item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "type": { "type": "string", "enum": ["new_order", "pending_delay", "order_completed", "order_canceled", "shift_closed"] },
+        "orderId": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "targetRole": { "type": "string", "enum": ["all", "manager", "motoboy"] },
+        "targetMotoboyId": { "type": "string" },
+        "read": { "type": "boolean" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "tenantId", "title", "body", "type", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/tenants/{tenantId}": {
+      "schema": "Tenant",
+      "description": "Tenant subscriber organizations"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles with tenant affiliation and RBAC roles"
+    },
+    "/settings/{tenantId}": {
+      "schema": "CompanySettings",
+      "description": "Administrator company details and operational preferences"
+    },
+    "/motoboys/{motoboyId}": {
+      "schema": "Motoboy",
+      "description": "Courier directory isolated per tenant"
+    },
+    "/stores/{storeId}": {
+      "schema": "DeliveryStore",
+      "description": "Origin partner stores per tenant"
+    },
+    "/rates/{rateId}": {
+      "schema": "NeighborhoodRate",
+      "description": "Pricing tables per tenant, store, and neighborhood"
+    },
+    "/orders/{orderId}": {
+      "schema": "DeliveryOrder",
+      "description": "Delivery corrida records per tenant"
+    },
+    "/shift_closings/{closingId}": {
+      "schema": "ShiftClosing",
+      "description": "Immutable shift closings per tenant"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Auditable log entries per tenant"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "AppNotification",
+      "description": "In-app and push notification records per tenant"
+    }
+  }
+}

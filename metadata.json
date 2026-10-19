@@ -1,0 +1,7 @@
+{
+  "name": "Delivery OS - Herculano Gestor",
+  "description": "Sistema SaaS para controle inteligente de entregas, despacho de motoboys, fechamento de turnos e relatórios operacionais.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

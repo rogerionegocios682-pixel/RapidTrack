@@ -323,4 +323,3 @@ export async function closePool(): Promise<void> {
 }
 
 export type { QueryResultRow };
-
