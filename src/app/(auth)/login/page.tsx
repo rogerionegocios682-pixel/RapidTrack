@@ -11,14 +11,15 @@ export const metadata: Metadata = { title: 'Entrar' };
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: { reset?: string; next?: string };
+  searchParams: Promise<{ reset?: string; next?: string }>;
 }) {
   // Já autenticado? Vai direto ao dashboard.
   const user = await getCurrentUser();
   if (user) redirect('/dashboard');
 
+  const params = await searchParams;
   const info =
-    searchParams.reset === '1'
+    params.reset === '1'
       ? 'Senha redefinida com sucesso! Faça login com a nova senha.'
       : undefined;
 

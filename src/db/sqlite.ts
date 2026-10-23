@@ -214,31 +214,16 @@ function persistNowAsync(state: SqliteState): void {
 }
 
 /**
- * Persiste o banco em disco de forma agrupada (coalescing).
- * -------------------------------------------------------------------------
- * Antes, cada escrita chamava `persist()` de forma síncrona. Como o arquivo é
- * reescrito por inteiro, cadastros e mudanças de status ficavam lentos. Agora
- * as escritas próximas compartilham uma única gravação; a durabilidade é
- * garantida porque a gravação pendente é sempre executada (e pode ser forçada
- * com `flush()`), inclusive ao fechar o banco.
+ * Persiste o banco antes de concluir a operação.
+ *
+ * A gravação assíncrona/debounce anterior permitia que a Server Action
+ * retornasse sucesso antes de o arquivo ser atualizado. Em reinícios rápidos
+ * (comum no preview e no desenvolvimento), o cadastro era perdido. Como o
+ * SQLite é o fallback local de persistência, a confirmação só deve acontecer
+ * depois da gravação atômica em disco.
  */
 function persist(state: SqliteState): void {
-  if (PERSIST_DEBOUNCE_MS <= 0) {
-    persistNow(state);
-    return;
-  }
-  if (globalThis.__deliveryOsSqlitePendingPersist) return;
-
-  const pending = setTimeout(() => {
-    globalThis.__deliveryOsSqlitePendingPersist = undefined;
-    if (globalThis.__deliveryOsSqlite?.db === state.db) persistNowAsync(state);
-  }, PERSIST_DEBOUNCE_MS);
-
-  // Não mantém o processo vivo apenas por causa da gravação pendente.
-  if (typeof pending === 'object' && pending !== null && 'unref' in pending) {
-    (pending as { unref: () => void }).unref();
-  }
-  globalThis.__deliveryOsSqlitePendingPersist = pending;
+  persistNow(state);
 }
 
 /** Grava imediatamente qualquer persistência pendente (ex.: ao fechar o banco). */
