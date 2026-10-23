@@ -27,16 +27,21 @@ export async function loginAction(
 
     await setSessionCookie({ ...auth.user, password_hash: '' });
 
-    // Registra o login na auditoria.
-    await write((db) => {
-      auditRow(db, {
-        user: { id: auth.user!.id, name: auth.user!.name },
-        action: 'login',
-        entity: 'user',
-        entityId: auth.user!.id,
-        description: `Login realizado por ${auth.user!.email}`,
+    // A sessão é criada antes da auditoria: uma falha de registro não pode
+    // impedir o usuário de acessar o dashboard após credenciais válidas.
+    try {
+      await write((db) => {
+        auditRow(db, {
+          user: { id: auth.user!.id, name: auth.user!.name },
+          action: 'login',
+          entity: 'user',
+          entityId: auth.user!.id,
+          description: `Login realizado por ${auth.user!.email}`,
+        });
       });
-    });
+    } catch (error) {
+      console.error('[auth] falha ao registrar auditoria do login', error);
+    }
 
     return auth.user;
   });
