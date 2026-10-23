@@ -19,6 +19,7 @@
  *    Por isso nenhum repositório precisou mudar.
  * ---------------------------------------------------------------------------
  */
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool, type PoolClient, type QueryResultRow } from 'pg';
 import * as sqlite from './sqlite';
 
@@ -72,6 +73,11 @@ export function getPool(): Pool {
   globalThis.__deliveryOsPool = pool;
   return pool;
 }
+
+/** Cliente Drizzle usado pelas operações PostgreSQL legadas. */
+export const db = CONNECTION_STRING
+  ? drizzle(getPool())
+  : (null as unknown as ReturnType<typeof drizzle>);
 
 /* ===========================================================================
  * Tradução de dialecto SQLite -> Postgres

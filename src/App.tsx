@@ -148,7 +148,7 @@ const MainAppContent: React.FC = () => {
             const notifId = `notif_delay_${o.id}`;
             const delayNotif: AppNotification = {
               id: notifId,
-              tenantId: userProfile.tenantId,
+              tenantId: activeTenantId,
               title: `Alerta de Demora: Pedido ${o.orderNumber}`,
               body: `Corrida com ${o.motoboyName} está pendente há mais de 20 minutos!`,
               type: 'pending_delay',
