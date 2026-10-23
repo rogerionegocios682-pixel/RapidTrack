@@ -1,5 +1,5 @@
 import { eq, desc, and } from 'drizzle-orm';
-import { db } from './index.ts';
+import { db } from './index';
 import {
   tenants,
   users,
@@ -11,7 +11,7 @@ import {
   shiftClosings,
   auditLogs,
   appNotifications,
-} from './schema.ts';
+} from './schema';
 import type {
   Tenant,
   UserProfile,
@@ -23,7 +23,7 @@ import type {
   ShiftClosing,
   AuditLog,
   AppNotification,
-} from '../types/index.ts';
+} from '../types';
 
 // ==========================================
 // TENANTS
